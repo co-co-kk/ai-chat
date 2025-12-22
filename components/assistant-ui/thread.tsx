@@ -19,7 +19,7 @@ import {
   ThreadPrimitive,
 } from "@assistant-ui/react";
 
-import type { FC } from "react";
+import type { ComponentProps, FC, ReactNode } from "react";
 import { LazyMotion, MotionConfig, domAnimation } from "motion/react";
 import * as m from "motion/react-m";
 
@@ -33,20 +33,34 @@ import {
   ComposerAttachments,
   UserMessageAttachments,
 } from "@/components/assistant-ui/attachment";
+import {
+  type ComposerActionModule,
+  ComposerActionModules,
+} from "@/components/assistant-ui/composer-action-modules";
 
 import { cn } from "@/lib/utils";
 
-export const Thread: FC = () => {
+type ThreadProps = {
+  messageComponents?: ComponentProps<typeof ThreadPrimitive.Messages>["components"];
+  composerActionModules?: ComposerActionModule[];
+  composerFooter?: ReactNode;
+};
+
+export const Thread: FC<ThreadProps> = ({
+  messageComponents,
+  composerActionModules,
+  composerFooter,
+}) => {
   return (
     <LazyMotion features={domAnimation}>
       <MotionConfig reducedMotion="user">
         <ThreadPrimitive.Root
-          className="aui-root aui-thread-root @container flex h-full flex-col bg-background"
+          className="aui-root aui-thread-root @container flex h-full flex-col bg-slate-50"
           style={{
-            ["--thread-max-width" as string]: "44rem",
+            ["--thread-max-width" as string]: "100%",
           }}
         >
-          <ThreadPrimitive.Viewport className="aui-thread-viewport relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll px-4">
+          <ThreadPrimitive.Viewport className="aui-thread-viewport relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll bg-slate-50 px-4">
             <ThreadPrimitive.If empty>
               <ThreadWelcome />
             </ThreadPrimitive.If>
@@ -56,6 +70,7 @@ export const Thread: FC = () => {
                 UserMessage,
                 EditComposer,
                 AssistantMessage,
+                ...messageComponents,
               }}
             />
 
@@ -63,7 +78,10 @@ export const Thread: FC = () => {
               <div className="aui-thread-viewport-spacer min-h-8 grow" />
             </ThreadPrimitive.If>
 
-            <Composer />
+            <Composer
+              composerActionModules={composerActionModules}
+              composerFooter={composerFooter}
+            />
           </ThreadPrimitive.Viewport>
         </ThreadPrimitive.Root>
       </MotionConfig>
@@ -171,7 +189,15 @@ const ThreadSuggestions: FC = () => {
   );
 };
 
-const Composer: FC = () => {
+type ComposerProps = {
+  composerActionModules?: ComposerActionModule[];
+  composerFooter?: ReactNode;
+};
+
+const Composer: FC<ComposerProps> = ({
+  composerActionModules,
+  composerFooter,
+}) => {
   return (
     <div className="aui-composer-wrapper sticky bottom-0 mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col gap-4 overflow-visible rounded-t-3xl bg-background pb-4 md:pb-6">
       <ThreadScrollToBottom />
@@ -187,17 +213,25 @@ const Composer: FC = () => {
             autoFocus
             aria-label="Message input"
           />
-          <ComposerAction />
+          <ComposerAction composerActionModules={composerActionModules} />
         </ComposerPrimitive.AttachmentDropzone>
       </ComposerPrimitive.Root>
+      {composerFooter}
     </div>
   );
 };
 // 按钮
-const ComposerAction: FC = () => {
+type ComposerActionProps = {
+  composerActionModules?: ComposerActionModule[];
+};
+
+const ComposerAction: FC<ComposerActionProps> = ({ composerActionModules }) => {
   return (
     <div className="aui-composer-action-wrapper relative mx-1 mt-2 mb-2 flex items-center justify-between">
-      <ComposerAddAttachment />
+      <div className="aui-composer-action-left flex items-center gap-2">
+        <ComposerAddAttachment />
+        <ComposerActionModules modules={composerActionModules} />
+      </div>
 
       <ThreadPrimitive.If running={false}>
         <ComposerPrimitive.Send asChild>
