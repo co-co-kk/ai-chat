@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
-import { AssistantRuntimeProvider } from "@assistant-ui/react";
+import { useEffect, useState, useCallback } from "react";
+import { AssistantRuntimeProvider, useAssistantRuntime } from "@assistant-ui/react";
 import { useChatRuntime, AssistantChatTransport } from "@assistant-ui/react-ai-sdk";
 import { Thread } from "@/components/assistant-ui/thread";
 import {
@@ -21,8 +21,43 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 
+// 创建一个组件来处理会话历史加载
+// const ThreadLoader = ({ threadId }: { threadId?: string }) => {
+//   const runtime = useAssistantRuntime();
+  
+//   useEffect(() => {
+//     if (!threadId || !runtime) return;
+    
+//     // 从 API 加载会话历史
+//     const loadThreadHistory = async () => {
+//       try {
+//         // 这里调用你的会话历史 API
+//         const response = await fetch(`/api/threads/${threadId}`);
+//         const history = await response.json();
+        
+//         // 清空当前会话
+//         runtime.thread.clear();
+        
+//         // 将历史消息添加到会话中
+//         history.messages.forEach((message: any) => {
+//           runtime.thread.append({
+//             role: message.role,
+//             content: [{ type: "text", text: message.content }]
+//           });
+//         });
+//       } catch (error) {
+//         console.error("Failed to load thread history:", error);
+//       }
+//     };
+    
+//     loadThreadHistory();
+//   }, [threadId, runtime]);
+  
+//   return null;
+// };
+
 export const Assistant = () => {
-  // 使用本地 mock 数据，禁用 API 调用
+  // 启用真实的 API 调用
   const runtime = useChatRuntime({
     transport: new AssistantChatTransport({
       api: "/api/chat",
@@ -32,14 +67,23 @@ export const Assistant = () => {
       }
     }),
   });
-  // const runtime = useChatRuntime({
-  //   transport: new AssistantChatTransport({
-  //     api: "/api/chat", // 保持原API配置
-  //   }),
-  // });
+  
+  // 管理当前会话 ID
+  // const [currentThreadId, setCurrentThreadId] = useState<string | undefined>(undefined);
+  
+  // // 处理会话切换
+  // const handleThreadChange = useCallback((event: Event) => {
+  //   const customEvent = event as CustomEvent;
+  //   setCurrentThreadId(customEvent.detail);
+  // }, []);
 
-  // 在组件加载时，将 mockMessages 设置为初始消息
- useEffect(() => {
+  // 监听会话切换事件
+  // useEffect(() => {
+  //   window.addEventListener('thread-change', handleThreadChange as EventListener);
+  //   return () => {
+  //     window.removeEventListener('thread-change', handleThreadChange as EventListener);
+  //   };
+  useEffect(() => {
   if (runtime && runtime.thread) {
     mockMessages.forEach((message) => {
       const textContent = message.parts
@@ -56,11 +100,15 @@ export const Assistant = () => {
       });
     });
   }
-}, [runtime]);
+  }, [runtime]);
+  // }, [handleThreadChange]);
 
   return (
     <>
     <AssistantRuntimeProvider runtime={runtime}>
+      {/* 加载会话历史 */}
+      {/* <ThreadLoader threadId={currentThreadId} /> */}
+      
       <SidebarProvider>
         <div className="flex h-dvh w-full pr-0.5">
           <ThreadListSidebar />
@@ -87,7 +135,10 @@ export const Assistant = () => {
               </Breadcrumb>
             </header>
             <div className="flex-1 overflow-hidden">
-              {/* Thread 组件渲染聊天内容 */}
+              {/* Thread 组件会自动渲染所有消息，包括：
+                   1. 从会话历史加载的消息
+                   2. 用户新发送的消息
+                   3. AI 流式响应的消息 */}
               <Thread />
             </div>
           </SidebarInset>
