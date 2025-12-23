@@ -42,15 +42,27 @@ import { cn } from "@/lib/utils";
 
 type ThreadProps = {
   messageComponents?: ComponentProps<typeof ThreadPrimitive.Messages>["components"];
+  assistantPartComponents?: ComponentProps<typeof MessagePrimitive.Parts>["components"];
   composerActionModules?: ComposerActionModule[];
+  composerAttachment?: ReactNode;
+  composerAttachments?: ReactNode;
+  composerActionSlot?: ReactNode;
   composerFooter?: ReactNode;
 };
 
 export const Thread: FC<ThreadProps> = ({
   messageComponents,
+  assistantPartComponents,
   composerActionModules,
+  composerAttachment,
+  composerAttachments,
+  composerActionSlot,
   composerFooter,
 }) => {
+  const AssistantMessageSlot: FC = () => (
+    <AssistantMessage partComponents={assistantPartComponents} />
+  );
+
   return (
     <LazyMotion features={domAnimation}>
       <MotionConfig reducedMotion="user">
@@ -65,14 +77,14 @@ export const Thread: FC<ThreadProps> = ({
               <ThreadWelcome />
             </ThreadPrimitive.If>
 
-            <ThreadPrimitive.Messages
-              components={{
-                UserMessage,
-                EditComposer,
-                AssistantMessage,
-                ...messageComponents,
-              }}
-            />
+          <ThreadPrimitive.Messages
+            components={{
+              UserMessage,
+              EditComposer,
+              AssistantMessage: AssistantMessageSlot,
+              ...messageComponents,
+            }}
+          />
 
             <ThreadPrimitive.If empty={false}>
               <div className="aui-thread-viewport-spacer min-h-8 grow" />
@@ -80,6 +92,9 @@ export const Thread: FC<ThreadProps> = ({
 
             <Composer
               composerActionModules={composerActionModules}
+              composerAttachment={composerAttachment}
+              composerAttachments={composerAttachments}
+              composerActionSlot={composerActionSlot}
               composerFooter={composerFooter}
             />
           </ThreadPrimitive.Viewport>
@@ -191,11 +206,17 @@ const ThreadSuggestions: FC = () => {
 
 type ComposerProps = {
   composerActionModules?: ComposerActionModule[];
+  composerAttachment?: ReactNode;
+  composerAttachments?: ReactNode;
+  composerActionSlot?: ReactNode;
   composerFooter?: ReactNode;
 };
 
 const Composer: FC<ComposerProps> = ({
   composerActionModules,
+  composerAttachment,
+  composerAttachments,
+  composerActionSlot,
   composerFooter,
 }) => {
   return (
@@ -204,7 +225,7 @@ const Composer: FC<ComposerProps> = ({
       <ComposerPrimitive.Root className="aui-composer-root relative flex w-full flex-col">
 
         <ComposerPrimitive.AttachmentDropzone className="aui-composer-attachment-dropzone group/input-group flex w-full flex-col rounded-3xl border border-input bg-background px-1 pt-2 shadow-xs transition-[color,box-shadow] outline-none has-[textarea:focus-visible]:border-ring has-[textarea:focus-visible]:ring-[3px] has-[textarea:focus-visible]:ring-ring/50 data-[dragging=true]:border-dashed data-[dragging=true]:border-ring data-[dragging=true]:bg-accent/50 dark:bg-background">
-          <ComposerAttachments />
+          {composerAttachments ?? <ComposerAttachments />}
 
           <ComposerPrimitive.Input
             placeholder="Send a message..."
@@ -213,7 +234,11 @@ const Composer: FC<ComposerProps> = ({
             autoFocus
             aria-label="Message input"
           />
-          <ComposerAction composerActionModules={composerActionModules} />
+          <ComposerAction
+            composerActionModules={composerActionModules}
+            composerAttachment={composerAttachment}
+            composerActionSlot={composerActionSlot}
+          />
         </ComposerPrimitive.AttachmentDropzone>
       </ComposerPrimitive.Root>
       {composerFooter}
@@ -223,14 +248,21 @@ const Composer: FC<ComposerProps> = ({
 // 按钮
 type ComposerActionProps = {
   composerActionModules?: ComposerActionModule[];
+  composerAttachment?: ReactNode;
+  composerActionSlot?: ReactNode;
 };
 
-const ComposerAction: FC<ComposerActionProps> = ({ composerActionModules }) => {
+const ComposerAction: FC<ComposerActionProps> = ({
+  composerActionModules,
+  composerAttachment,
+  composerActionSlot,
+}) => {
   return (
     <div className="aui-composer-action-wrapper relative mx-1 mt-2 mb-2 flex items-center justify-between">
       <div className="aui-composer-action-left flex items-center gap-2">
-        <ComposerAddAttachment />
+        {composerAttachment ?? <ComposerAddAttachment />}
         <ComposerActionModules modules={composerActionModules} />
+        {composerActionSlot}
       </div>
 
       <ThreadPrimitive.If running={false}>
@@ -276,7 +308,16 @@ const MessageError: FC = () => {
   );
 };
 
-const AssistantMessage: FC = () => {
+type AssistantMessageProps = {
+  partComponents?: ComponentProps<typeof MessagePrimitive.Parts>["components"];
+};
+
+const AssistantMessage: FC<AssistantMessageProps> = ({ partComponents }) => {
+  const tools =
+    partComponents?.tools && "Override" in partComponents.tools
+      ? partComponents.tools
+      : { Fallback: ToolFallback, ...(partComponents?.tools ?? {}) };
+
   return (
     <MessagePrimitive.Root asChild>
       <div
@@ -289,7 +330,8 @@ const AssistantMessage: FC = () => {
               Text: MarkdownText,
               Reasoning: Reasoning,
               ReasoningGroup: ReasoningGroup,
-              tools: { Fallback: ToolFallback },
+              ...partComponents,
+              tools,
             }}
           />
           <MessageError />

@@ -5,10 +5,21 @@ export type MockChatSession = {
   group: "今天" | "昨天" | "本周" | "本月" | "更早";
 };
 
+export type MockChatMessagePart =
+  | {
+      type: "text";
+      content: string;
+    }
+  | {
+      type: "tool-call";
+      toolName: "workflow" | "resource-summary";
+      args: Record<string, unknown>;
+    };
+
 export type MockChatMessage = {
   id: string;
   role: "user" | "assistant";
-  parts: { type: "text"; content: string }[];
+  parts: MockChatMessagePart[];
 };
 
 export const mockChatSessions: MockChatSession[] = [
@@ -125,6 +136,34 @@ export const mockChatMessagesBySessionId: Record<string, MockChatMessage[]> = {
           content:
             "AI 赋能的知识库能够让检索更精准、内容更结构化，并支持面向场景的智能问答与决策辅助。",
         },
+        {
+          type: "tool-call",
+          toolName: "workflow",
+          args: {
+            title: "知识库问答处理流程",
+            steps: [
+              {
+                id: "step-1",
+                label: "权限验证完成",
+                status: "done",
+                detail: "已确认用户具备访问权限。",
+                duration: "1.5s",
+              },
+              {
+                id: "step-2",
+                label: "正在思考",
+                status: "running",
+                detail: "总结本次检索的关键要点。",
+              },
+              {
+                id: "step-3",
+                label: "检索完成",
+                status: "pending",
+                detail: "等待补充资料以完善回复。",
+              },
+            ],
+          },
+        },
       ],
     },
   ],
@@ -155,6 +194,18 @@ export const mockChatMessagesBySessionId: Record<string, MockChatMessage[]> = {
           type: "text",
           content:
             "本期收入 1.58 亿元，同比增长 28.5%，净利润 2.5 亿元，同比增长 32%。",
+        },
+        {
+          type: "tool-call",
+          toolName: "resource-summary",
+          args: {
+            title: "参考资料",
+            resources: [
+              { id: "res-1", name: "经营数据分析报表.pdf", type: "pdf" },
+              { id: "res-2", name: "数据洞察要点.docx", type: "doc" },
+              { id: "res-3", name: "数据仓库指标说明", type: "link" },
+            ],
+          },
         },
       ],
     },
