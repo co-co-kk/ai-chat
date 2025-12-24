@@ -27,7 +27,7 @@ import { cn } from "@/lib/utils";
 export type AiChatLayoutMode = "standard" | "wide";
 export type AiChatMessageRole = "assistant" | "user" | "system";
 export type AiChatFileStatus = "idle" | "uploading" | "success" | "error";
-export type AiChatFileKind = "image" | "pdf" | "archive" | "other";
+export type AiChatFileKind = "image" | "pdf" | "doc" | "archive" | "other";
 
 export type AiChatFile = {
   id: string;
@@ -52,6 +52,7 @@ export type AiChatMessage = {
 
 export type AiChatState = {
   input: string;
+  currentInput: string;
   messages: AiChatMessage[];
   attachments: AiChatFile[];
   isSending: boolean;
@@ -76,14 +77,14 @@ export type AiChatHandle = {
 export type AiChatProps = {
   className?: string;
   title?: string;
-  layoutMode?: AiChatLayoutMode;
+  mode?: AiChatLayoutMode;
   sidePanel?: ReactNode;
   sidePanelClassName?: string;
-  headerActions?: (state: AiChatState) => ReactNode;
-  renderInputLeft?: (state: AiChatState) => ReactNode;
-  renderInputRight?: (state: AiChatState) => ReactNode;
-  renderComposerFooter?: (state: AiChatState) => ReactNode;
-  messageRenderers?: Record<
+  headerExtra?: (state: AiChatState) => ReactNode;
+  inputLeftSlot?: (state: AiChatState) => ReactNode;
+  inputRightSlot?: (state: AiChatState) => ReactNode;
+  composerFooterSlot?: (state: AiChatState) => ReactNode;
+  customRenderers?: Record<
     string,
     (message: AiChatMessage, state: AiChatState) => ReactNode
   >;
@@ -102,6 +103,7 @@ export type AiChatProps = {
   onAttachmentsSelect?: (
     files: File[],
   ) => void | AiChatFile[] | Promise<AiChatFile[]>;
+  onCancelUpload?: (file: AiChatFile) => void;
   placeholder?: string;
   disabled?: boolean;
 };
@@ -154,6 +156,7 @@ const resolveFileKind = (file: AiChatFile): AiChatFileKind => {
   if (file.kind) return file.kind;
   const name = file.name.toLowerCase();
   if (name.endsWith(".pdf")) return "pdf";
+  if (name.endsWith(".doc") || name.endsWith(".docx")) return "doc";
   if (name.endsWith(".zip") || name.endsWith(".rar") || name.endsWith(".7z")) {
     return "archive";
   }
@@ -171,13 +174,20 @@ const resolveFileKind = (file: AiChatFile): AiChatFileKind => {
 
 const FileIcon = ({ kind }: { kind: AiChatFileKind }) => {
   if (kind === "pdf") return <FileText className="size-4 text-emerald-500" />;
+  if (kind === "doc") return <FileText className="size-4 text-sky-500" />;
   if (kind === "archive")
     return <FileArchive className="size-4 text-amber-500" />;
   if (kind === "image") return <FileImage className="size-4 text-blue-500" />;
   return <FileText className="size-4 text-slate-400" />;
 };
 
-const AttachmentCard = ({ file }: { file: AiChatFile }) => {
+const AttachmentCard = ({
+  file,
+  onCancel,
+}: {
+  file: AiChatFile;
+  onCancel?: (file: AiChatFile) => void;
+}) => {
   const kind = resolveFileKind(file);
   const isError = file.status === "error";
   const isUploading = file.status === "uploading";
@@ -205,10 +215,21 @@ const AttachmentCard = ({ file }: { file: AiChatFile }) => {
             {formatSize(file.size)}
           </div>
         </div>
-        <div className="text-[11px] font-medium text-slate-400">
-          {file.status === "uploading" ? "上传中" : null}
-          {file.status === "success" ? "完成" : null}
-          {file.status === "error" ? "失败" : null}
+        <div className="flex items-center gap-2 text-[11px] font-medium text-slate-400">
+          <span>
+            {file.status === "uploading" ? "上传中" : null}
+            {file.status === "success" ? "完成" : null}
+            {file.status === "error" ? "失败" : null}
+          </span>
+          {isUploading && onCancel ? (
+            <button
+              type="button"
+              className="rounded-full border border-slate-200 px-2 py-0.5 text-[10px] text-slate-500 hover:bg-slate-100"
+              onClick={() => onCancel(file)}
+            >
+              取消
+            </button>
+          ) : null}
         </div>
       </div>
       {isUploading ? (
@@ -231,14 +252,14 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
     {
       className,
       title = "标题文案",
-      layoutMode = "standard",
+      mode = "standard",
       sidePanel,
       sidePanelClassName,
-      headerActions,
-      renderInputLeft,
-      renderInputRight,
-      renderComposerFooter,
-      messageRenderers,
+      headerExtra,
+      inputLeftSlot,
+      inputRightSlot,
+      composerFooterSlot,
+      customRenderers,
       messages,
       defaultMessages = [],
       onMessagesChange,
@@ -248,6 +269,7 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
       onSendMessage,
       onInputChange,
       onAttachmentsSelect,
+      onCancelUpload,
       placeholder = "我有什么可以帮您的吗？",
       disabled = false,
     },
@@ -325,6 +347,7 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
     const state: AiChatState = useMemo(
       () => ({
         input,
+        currentInput: input,
         messages: messageList,
         attachments: attachmentList,
         isSending,
@@ -390,21 +413,21 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
             <span>{title}</span>
           </div>
           <div className="flex items-center gap-2">
-            {headerActions?.(state)}
+            {headerExtra?.(state)}
           </div>
         </header>
 
         <div
           className={cn(
             "flex flex-1 flex-col bg-white",
-            layoutMode === "wide" && "md:flex-row",
+            mode === "wide" && "md:flex-row",
           )}
         >
           <div className="flex min-h-0 flex-1 flex-col">
             <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5">
               {messageList.map((message) => {
                 const renderer =
-                  message.type && messageRenderers?.[message.type];
+                  message.type && customRenderers?.[message.type];
                 if (renderer) {
                   return (
                     <div key={message.id} className="space-y-2">
@@ -435,7 +458,11 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
                       {message.files?.length ? (
                         <div className="grid gap-2">
                           {message.files.map((file) => (
-                            <AttachmentCard key={file.id} file={file} />
+                            <AttachmentCard
+                              key={file.id}
+                              file={file}
+                              onCancel={onCancelUpload}
+                            />
                           ))}
                         </div>
                       ) : null}
@@ -449,7 +476,19 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
               {attachmentList.length ? (
                 <div className="mb-3 grid gap-2 sm:grid-cols-2">
                   {attachmentList.map((file) => (
-                    <AttachmentCard key={file.id} file={file} />
+                    <AttachmentCard
+                      key={file.id}
+                      file={file}
+                      onCancel={(target) => {
+                        if (onCancelUpload) {
+                          onCancelUpload(target);
+                          return;
+                        }
+                        setAttachmentList((prev) =>
+                          prev.filter((item) => item.id !== target.id),
+                        );
+                      }}
+                    />
                   ))}
                 </div>
               ) : null}
@@ -466,7 +505,7 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
                     />
                     <Paperclip className="size-4" />
                   </label>
-                  {renderInputLeft?.(state)}
+                  {inputLeftSlot?.(state)}
                 </div>
                 <textarea
                   className="min-h-[44px] flex-1 resize-none bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
@@ -476,7 +515,7 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
                   disabled={disabled}
                 />
                 <div className="flex items-center gap-2">
-                  {renderInputRight?.(state)}
+                  {inputRightSlot?.(state)}
                   <button
                     type="button"
                     onClick={() => void sendMessage()}
@@ -488,13 +527,13 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
                 </div>
               </div>
 
-              {renderComposerFooter ? (
-                <div className="pt-3">{renderComposerFooter(state)}</div>
+              {composerFooterSlot ? (
+                <div className="pt-3">{composerFooterSlot(state)}</div>
               ) : null}
             </div>
           </div>
 
-          {layoutMode === "wide" && sidePanel ? (
+          {mode === "wide" && sidePanel ? (
             <aside
               className={cn(
                 "border-t border-slate-100 bg-slate-50 px-4 py-4 md:w-80 md:border-l md:border-t-0",
