@@ -608,12 +608,13 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
     }, [initialSessionId]);
 
     useEffect(() => {
+      if (messages !== undefined) return;
       if (!activeSessionId) return;
       const nextMessages = sessionMessages[activeSessionId];
       if (nextMessages) {
         setMessageList(nextMessages);
       }
-    }, [activeSessionId, sessionMessages, setMessageList]);
+    }, [activeSessionId, messages, sessionMessages, setMessageList]);
 
     const appendMessage = useCallback(
       (message: AiChatMessage) => {
