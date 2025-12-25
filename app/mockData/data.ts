@@ -111,43 +111,7 @@ export const mockMessages = [
     parts: [
       {
         type: 'text',
-        content: 'Absolutely! Here\'s an interactive option list where you can select multiple options:\n\n<div class="option-list-container">
-  <OptionList
-    options={[
-      {
-        "id": "good",
-        "label": "Good",
-
-        "description": "High quality work"
-      },
-      {
-        "id": "fast",
-        "label": "Fast",
-        "description": "Quick turnaround"
-      },
-      {
-        "id": "cheap",
-        "label": "Cheap",
-        "description": "Low cost"
-      }
-    ]}
-    selectionMode="multi"
-    maxSelections={2}
-    responseActions={[
-      {
-        "id": "cancel",
-        "label": "Reset",
-        "variant": "ghost"
-      },
-      {
-        "id": "confirm",
-        "label": "Confirm",
-        "variant": "default"
-      }
-    ]}
-    onConfirm={(selection) => console.log("Selected options:", selection)}
-  />
-</div>\n\nThis is a custom OptionList component built with React and Tailwind CSS. You can select up to 2 options from the three available choices, then confirm or reset your selection.'
+        content: 'Absolutely! Here\'s an interactive option list where you can select multiple options:\n\n<div class="option-list-container">\n  <OptionList\n    options={[\n      {\n        "id": "good",\n        "label": "Good",\n        "description": "High quality work"\n      },\n      {\n        "id": "fast",\n        "label": "Fast",\n        "description": "Quick turnaround"\n      },\n      {\n        "id": "cheap",\n        "label": "Cheap",\n        "description": "Low cost"\n      }\n    ]}\n    selectionMode="multi"\n    maxSelections={2}\n    responseActions={[\n      {\n        "id": "cancel",\n        "label": "Reset",\n        "variant": "ghost"\n      },\n      {\n        "id": "confirm",\n        "label": "Confirm",\n        "variant": "default"\n      }\n    ]}\n    onConfirm={(selection) => console.log("Selected options:", selection)}\n  />\n</div>\n\nThis is a custom OptionList component built with React and Tailwind CSS. You can select up to 2 options from the three available choices, then confirm or reset your selection.'
       }
     ]
   },
