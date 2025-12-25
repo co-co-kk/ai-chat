@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
+  ChevronDown,
   Clipboard,
-  Maximize2,
   RefreshCw,
   Share2,
   SquarePlus,
@@ -13,9 +13,13 @@ import {
   AiChat,
   type AiChatFile,
   type AiChatMessage,
+  type AiChatSession,
   type AiChatState,
 } from "@/components/ai-chat/ai-chat";
-import { mockTools } from "@/mock/tools";
+import { mockFiles } from "@/app/mockData/chat-files";
+import { mockSessionMessages } from "@/app/mockData/chat-messages";
+import { mockChatSessions } from "@/app/mockData/chat-sessions";
+import { mockTools } from "@/app/mockData/chat-tools";
 import { chatService } from "@/services/chat-service";
 import { cn } from "@/lib/utils";
 
@@ -91,6 +95,10 @@ const InputToolButton = ({
 
 const InputSlot = ({ state }: { state: AiChatState }) => (
   <div className="flex items-center gap-2">
+    <button className="flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600">
+      能力
+      <ChevronDown className="size-3" />
+    </button>
     <InputToolButton
       label="引用"
       onClick={() => state.setInput(`${state.currentInput}「引用自历史消息」`)}
@@ -112,20 +120,64 @@ const libraryRows = Array.from({ length: 7 }).map((_, index) => ({
 }));
 
 export const App = () => {
-  const [messages, setMessages] = useState<AiChatMessage[]>([]);
-  const [attachments, setAttachments] = useState<AiChatFile[]>([]);
-  const [workspaceMessages, setWorkspaceMessages] = useState<AiChatMessage[]>([]);
-  const [workspaceAttachments, setWorkspaceAttachments] = useState<AiChatFile[]>([]);
+  const [openChat, setOpenChat] = useState(true);
+  const [sessions, setSessions] = useState<AiChatSession[]>(mockChatSessions);
+  const [sessionMessages, setSessionMessages] = useState(mockSessionMessages);
+  const [activeSessionId, setActiveSessionId] = useState(
+    mockChatSessions[0]?.id ?? "",
+  );
+  const [messages, setMessages] = useState<AiChatMessage[]>(
+    mockSessionMessages[activeSessionId] ?? [],
+  );
+  const [attachments, setAttachments] = useState<AiChatFile[]>(mockFiles);
 
-  useEffect(() => {
-    chatService.listMessages().then((data) => {
-      setMessages(data);
-      setWorkspaceMessages(data);
-    });
-  }, []);
+  const [workspaceSessions, setWorkspaceSessions] = useState<AiChatSession[]>(
+    mockChatSessions,
+  );
+  const [workspaceSessionMessages, setWorkspaceSessionMessages] = useState(
+    mockSessionMessages,
+  );
+  const [workspaceActiveSessionId, setWorkspaceActiveSessionId] = useState(
+    mockChatSessions[0]?.id ?? "",
+  );
+  const [workspaceMessages, setWorkspaceMessages] = useState<AiChatMessage[]>(
+    mockSessionMessages[workspaceActiveSessionId] ?? [],
+  );
+  const [workspaceAttachments, setWorkspaceAttachments] = useState<AiChatFile[]>(
+    [],
+  );
+
+  const handleSessionChange = (sessionId: string) => {
+    setActiveSessionId(sessionId);
+    setMessages(sessionMessages[sessionId] ?? []);
+  };
+
+  const handleWorkspaceSessionChange = (sessionId: string) => {
+    setWorkspaceActiveSessionId(sessionId);
+    setWorkspaceMessages(workspaceSessionMessages[sessionId] ?? []);
+  };
+
+  const handleMessagesChange = (next: AiChatMessage[]) => {
+    setMessages(next);
+    setSessionMessages((prev) => ({
+      ...prev,
+      [activeSessionId]: next,
+    }));
+  };
+
+  const handleWorkspaceMessagesChange = (next: AiChatMessage[]) => {
+    setWorkspaceMessages(next);
+    setWorkspaceSessionMessages((prev) => ({
+      ...prev,
+      [workspaceActiveSessionId]: next,
+    }));
+  };
 
   const createSendHandler =
-    (setMessageList: (value: AiChatMessage[] | ((prev: AiChatMessage[]) => AiChatMessage[])) => void) =>
+    (
+      setMessageList: (value: AiChatMessage[] | ((prev: AiChatMessage[]) => AiChatMessage[])) => void,
+      sessionId: string,
+    ) =>
     async ({
       text,
       attachments: files,
@@ -133,7 +185,7 @@ export const App = () => {
       text: string;
       attachments: AiChatFile[];
     }) => {
-      const reply = await chatService.sendMessage(text, files);
+      const reply = await chatService.sendMessage(sessionId, text, files);
       setMessageList((prev) => [...prev, reply]);
     };
 
@@ -175,12 +227,6 @@ export const App = () => {
           }
         />
         <HeaderButton label={mockTools[2].label} onClick={() => undefined} />
-        <button
-          type="button"
-          className="rounded-full border border-slate-200 p-1 text-slate-500"
-        >
-          <Maximize2 className="size-3" />
-        </button>
       </div>
     ),
     [],
@@ -197,30 +243,58 @@ export const App = () => {
 
   return (
     <div className="min-h-dvh bg-[#f5f7fb] px-6 py-8 text-slate-700">
-      <div className="mb-6 flex items-center gap-3">
-        <div className="text-lg font-semibold">AiChat 组件库演示</div>
-        <span className="rounded-full bg-blue-100 px-2 py-1 text-xs text-blue-600">
-          React + TypeScript + Tailwind + assistant-ui
-        </span>
+      <div className="mb-6 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="text-lg font-semibold">AiChat 组件库演示</div>
+          <span className="rounded-full bg-blue-100 px-2 py-1 text-xs text-blue-600">
+            React + TypeScript + Tailwind + assistant-ui
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={() => setOpenChat(true)}
+          className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs text-slate-600 shadow-sm"
+        >
+          打开聊天组件
+        </button>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <AiChat
           title="标准模式"
           mode="standard"
+          open={openChat}
+          onOpenChange={setOpenChat}
+          sessions={sessions}
+          onSessionsChange={setSessions}
+          sessionMessages={sessionMessages}
+          initialSessionId={activeSessionId}
+          onSessionChange={handleSessionChange}
+          onSessionCreate={(session) => {
+            setSessions((prev) => [session, ...prev]);
+            setSessionMessages((prev) => ({ ...prev, [session.id]: [] }));
+            setActiveSessionId(session.id);
+            setMessages([]);
+          }}
           messages={messages}
-          onMessagesChange={setMessages}
+          onMessagesChange={handleMessagesChange}
           attachments={attachments}
           onAttachmentsChange={setAttachments}
-          onSendMessage={createSendHandler(setMessages)}
+          onSendMessage={createSendHandler(setMessages, activeSessionId)}
           onAttachmentsSelect={createUploadHandler(setAttachments)}
           onCancelUpload={(file) => {
             chatService.cancelUpload(file.id).then(setAttachments);
           }}
           headerExtra={headerActions}
           inputLeftSlot={({ currentInput }) => (
-            <div className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-500">
-              输入中：{currentInput.length} 字
+            <div className="flex items-center gap-2">
+              <button className="flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600">
+                能力
+                <ChevronDown className="size-3" />
+              </button>
+              <div className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-500">
+                输入中：{currentInput.length} 字
+              </div>
             </div>
           )}
           inputRightSlot={({ sendMessage }) => (
@@ -243,11 +317,22 @@ export const App = () => {
         <AiChat
           title="宽屏模式"
           mode="wide"
+          sessions={sessions}
+          onSessionsChange={setSessions}
+          sessionMessages={sessionMessages}
+          initialSessionId={activeSessionId}
+          onSessionChange={handleSessionChange}
+          onSessionCreate={(session) => {
+            setSessions((prev) => [session, ...prev]);
+            setSessionMessages((prev) => ({ ...prev, [session.id]: [] }));
+            setActiveSessionId(session.id);
+            setMessages([]);
+          }}
           messages={messages}
-          onMessagesChange={setMessages}
+          onMessagesChange={handleMessagesChange}
           attachments={attachments}
           onAttachmentsChange={setAttachments}
-          onSendMessage={createSendHandler(setMessages)}
+          onSendMessage={createSendHandler(setMessages, activeSessionId)}
           onAttachmentsSelect={createUploadHandler(setAttachments)}
           onCancelUpload={(file) => {
             chatService.cancelUpload(file.id).then(setAttachments);
@@ -337,11 +422,28 @@ export const App = () => {
           <AiChat
             title="文档库助手"
             mode="wide"
+            sessions={workspaceSessions}
+            onSessionsChange={setWorkspaceSessions}
+            sessionMessages={workspaceSessionMessages}
+            initialSessionId={workspaceActiveSessionId}
+            onSessionChange={handleWorkspaceSessionChange}
+            onSessionCreate={(session) => {
+              setWorkspaceSessions((prev) => [session, ...prev]);
+              setWorkspaceSessionMessages((prev) => ({
+                ...prev,
+                [session.id]: [],
+              }));
+              setWorkspaceActiveSessionId(session.id);
+              setWorkspaceMessages([]);
+            }}
             messages={workspaceMessages}
-            onMessagesChange={setWorkspaceMessages}
+            onMessagesChange={handleWorkspaceMessagesChange}
             attachments={workspaceAttachments}
             onAttachmentsChange={setWorkspaceAttachments}
-            onSendMessage={createSendHandler(setWorkspaceMessages)}
+            onSendMessage={createSendHandler(
+              setWorkspaceMessages,
+              workspaceActiveSessionId,
+            )}
             onAttachmentsSelect={createUploadHandler(setWorkspaceAttachments)}
             onCancelUpload={(file) => {
               chatService.cancelUpload(file.id).then(setWorkspaceAttachments);
