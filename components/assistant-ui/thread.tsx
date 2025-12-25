@@ -8,6 +8,10 @@ import {
   PencilIcon,
   RefreshCwIcon,
   Square,
+  TriangleAlert,
+  FileArchive,
+  FileImage,
+  FileText,
 } from "lucide-react";
 
 import {
@@ -18,6 +22,7 @@ import {
   MessagePrimitive,
   ThreadPrimitive,
 } from "@assistant-ui/react";
+import FileChat from './FileChat.tsx'
 
 import type { ComponentProps, FC, ReactNode } from "react";
 import { LazyMotion, MotionConfig, domAnimation } from "motion/react";
@@ -40,6 +45,21 @@ import {
 
 import { cn } from "@/lib/utils";
 
+// 定义附件类型
+export type ThreadFileStatus = "idle" | "uploading" | "success" | "error";
+export type ThreadFileKind = "image" | "pdf" | "doc" | "archive" | "other";
+
+export type ThreadFile = {
+  id: string;
+  name: string;
+  size: number;
+  status?: ThreadFileStatus;
+  progress?: number;
+  kind?: ThreadFileKind;
+  url?: string;
+  errorMessage?: string;
+};
+
 type ThreadProps = {
   messageComponents?: ComponentProps<typeof ThreadPrimitive.Messages>["components"];
   assistantPartComponents?: ComponentProps<typeof MessagePrimitive.Parts>["components"];
@@ -52,6 +72,8 @@ type ThreadProps = {
   hideComposerSendButton?: boolean;
   composerInputPlaceholder?: string;
   composerFooter?: ReactNode;
+  attachments?: ThreadFile[];
+  onAttachmentsChange?: (files: ThreadFile[]) => void;
 };
 
 export const Thread: FC<ThreadProps> = ({
@@ -66,10 +88,19 @@ export const Thread: FC<ThreadProps> = ({
   hideComposerSendButton,
   composerInputPlaceholder,
   composerFooter,
+  attachments = [],
+  onAttachmentsChange,
 }) => {
   const AssistantMessageSlot: FC = () => (
     <AssistantMessage partComponents={assistantPartComponents} />
   );
+
+  const handleAttachmentCancel = (target: ThreadFile) => {
+    if (onAttachmentsChange) {
+      const updatedAttachments = attachments.filter((item) => item.id !== target.id);
+      onAttachmentsChange(updatedAttachments);
+    }
+  };
 
   return (
     <LazyMotion features={domAnimation}>
@@ -98,6 +129,24 @@ export const Thread: FC<ThreadProps> = ({
             <ThreadPrimitive.If empty={false}>
               <div className="aui-thread-viewport-spacer min-h-8 grow" />
             </ThreadPrimitive.If>
+             {/* 附件展示区域 */}
+            {attachments && attachments.length > 0 && (
+               <FileChat align="left">
+
+               
+              <div className="border-b border-slate-100 bg-slate-50">
+                <div className="flex gap-2.5 px-4">
+                  {attachments.map((file) => (
+                    <AttachmentCard
+                      key={file.id}
+                      file={file}
+                      onCancel={handleAttachmentCancel}
+                    />
+                  ))}
+                </div>
+              </div>
+              </FileChat>
+            )}
 
             <Composer
               composerActionModules={composerActionModules}
@@ -114,6 +163,112 @@ export const Thread: FC<ThreadProps> = ({
         </ThreadPrimitive.Root>
       </MotionConfig>
     </LazyMotion>
+  );
+};
+
+// 辅助函数：格式化文件大小
+const formatSize = (size: number) => {
+  if (size <= 0) return "0KB";
+  const kb = size / 1024;
+  if (kb < 1024) return `${kb.toFixed(0)}KB`;
+  return `${(kb / 1024).toFixed(1)}MB`;
+};
+
+// 辅助函数：根据文件类型返回对应类型
+const resolveFileKind = (file: ThreadFile): ThreadFileKind => {
+  if (file.kind) return file.kind;
+  const name = file.name.toLowerCase();
+  if (name.endsWith(".pdf")) return "pdf";
+  if (name.endsWith(".doc") || name.endsWith(".docx")) return "doc";
+  if (name.endsWith(".zip") || name.endsWith(".rar") || name.endsWith(".7z")) {
+    return "archive";
+  }
+  if (
+    name.endsWith(".png") ||
+    name.endsWith(".jpg") ||
+    name.endsWith(".jpeg") ||
+    name.endsWith(".webp") ||
+    name.endsWith(".gif")
+  ) {
+    return "image";
+  }
+  return "other";
+};
+
+// 文件图标组件
+const FileIcon = ({ kind }: { kind: ThreadFileKind }) => {
+  if (kind === "pdf") return <FileText className="size-4 text-emerald-500" />;
+  if (kind === "doc") return <FileText className="size-4 text-sky-500" />;
+  if (kind === "archive")
+    return <FileArchive className="size-4 text-amber-500" />;
+  if (kind === "image") return <FileImage className="size-4 text-blue-500" />;
+  return <FileText className="size-4 text-slate-400" />;
+};
+
+// 附件卡片组件
+const AttachmentCard = ({
+  file,
+  onCancel,
+}: {
+  file: ThreadFile;
+  onCancel?: (file: ThreadFile) => void;
+}) => {
+  const kind = resolveFileKind(file);
+  const isError = file.status === "error";
+  const isUploading = file.status === "uploading";
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-2 rounded-lg border bg-white px-3 py-2 text-xs shadow-sm w-[160px] h-[54px]",
+        isError && "border-red-300 bg-red-50",
+        isUploading && "border-blue-200 bg-blue-50",
+      )}
+    >
+      <div className="flex items-center gap-2">
+        <div className="flex size-6 items-center justify-center rounded-md bg-white shadow-sm">
+          {isError ? (
+            <TriangleAlert className="size-4 text-red-500" />
+          ) : (
+            <FileIcon kind={kind} />
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-medium text-slate-700">
+            {file.name}
+          </div>
+          <div className="text-[11px] text-slate-400">
+            {formatSize(file.size)}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 text-[11px] font-medium text-slate-400">
+          <span>
+            {file.status === "uploading" ? "上传中" : null}
+            {file.status === "success" ? "完成" : null}
+            {file.status === "error" ? "失败" : null}
+          </span>
+          {isUploading && onCancel ? (
+            <button
+              type="button"
+              className="rounded-full border border-slate-200 px-2 py-0.5 text-[10px] text-slate-500 hover:bg-slate-100"
+              onClick={() => onCancel(file)}
+            >
+              取消
+            </button>
+          ) : null}
+        </div>
+      </div>
+      {isUploading ? (
+        <div className="h-1 w-full overflow-hidden rounded-full bg-blue-100">
+          <div
+            className="h-full rounded-full bg-blue-500 transition-all"
+            style={{ width: `${Math.min(file.progress ?? 0, 100)}%` }}
+          />
+        </div>
+      ) : null}
+      {isError && file.errorMessage ? (
+        <div className="text-[11px] text-red-500">{file.errorMessage}</div>
+      ) : null}
+    </div>
   );
 };
 

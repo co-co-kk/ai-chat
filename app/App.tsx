@@ -121,16 +121,26 @@ const libraryRows = Array.from({ length: 7 }).map((_, index) => ({
 
 export const App = () => {
   const [openChat, setOpenChat] = useState(true);
+  // 会话列表状态 - 从 mock 数据初始化
   const [sessions, setSessions] = useState<AiChatSession[]>(mockChatSessions);
+  
+  // 会话消息映射状态 - 存储每个会话的对应消息列表
   const [sessionMessages, setSessionMessages] = useState(mockSessionMessages);
+  
+  // 当前活动会话ID - 默认为第一个会话
   const [activeSessionId, setActiveSessionId] = useState(
     mockChatSessions[0]?.id ?? "",
   );
+  
+  // 当前会话的消息列表 - 从对应会话的消息数据初始化
   const [messages, setMessages] = useState<AiChatMessage[]>(
     mockSessionMessages[activeSessionId] ?? [],
   );
+  
+  // 当前会话的附件列表
   const [attachments, setAttachments] = useState<AiChatFile[]>(mockFiles);
 
+  // 工作区会话相关状态
   const [workspaceSessions, setWorkspaceSessions] = useState<AiChatSession[]>(
     mockChatSessions,
   );
@@ -147,6 +157,8 @@ export const App = () => {
     [],
   );
 
+  // 切换会话的处理函数
+  // 数据流：点击会话项 → handleSessionChange → 更新 activeSessionId 和 messages
   const handleSessionChange = (sessionId: string) => {
     setActiveSessionId(sessionId);
     setMessages(sessionMessages[sessionId] ?? []);
@@ -157,6 +169,8 @@ export const App = () => {
     setWorkspaceMessages(workspaceSessionMessages[sessionId] ?? []);
   };
 
+  // 消息列表变化的处理函数
+  // 数据流：消息列表更新 → handleMessagesChange → 更新状态并同步到 sessionMessages
   const handleMessagesChange = (next: AiChatMessage[]) => {
     setMessages(next);
     setSessionMessages((prev) => ({
@@ -173,6 +187,8 @@ export const App = () => {
     }));
   };
 
+  // 创建发送消息处理函数
+  // 在实际应用中，这里会调用后端API
   const createSendHandler =
     (
       setMessageList: (value: AiChatMessage[] | ((prev: AiChatMessage[]) => AiChatMessage[])) => void,
@@ -185,15 +201,20 @@ export const App = () => {
       text: string;
       attachments: AiChatFile[];
     }) => {
+      // TODO: 实际项目中应替换为真实API调用
+      // 示例：const reply = await fetch('/api/chat/send', { method: 'POST', body: JSON.stringify({sessionId, text, files}) })
       const reply = await chatService.sendMessage(sessionId, text, files);
       setMessageList((prev) => [...prev, reply]);
     };
 
+  // 创建上传文件处理函数
+  // 在实际应用中，这里会调用后端API上传文件
   const createUploadHandler =
     (
       setFileList: (value: AiChatFile[] | ((prev: AiChatFile[]) => AiChatFile[])) => void,
     ) =>
     async (files: File[]) => {
+      // 模拟上传过程
       const next = files.map((file) => ({
         id: `${file.name}-${Date.now()}`,
         name: file.name,
@@ -310,10 +331,13 @@ export const App = () => {
           onOpenChange={setOpenChat}
           sessions={sessions}
           onSessionsChange={setSessions}
+          // sessionMessages - 会话ID到消息列表的映射，用于根据会话ID加载对应消息
+          // 数据流：点击历史会话 → onSessionChange → handleSessionChange → 根据sessionMessages[sessionId]更新消息列表
           sessionMessages={sessionMessages}
           initialSessionId={activeSessionId}
           onSessionChange={handleSessionChange}
           onSessionCreate={(session) => {
+            // 创建新会话时，初始化空消息列表
             setSessions((prev) => [session, ...prev]);
             setSessionMessages((prev) => ({ ...prev, [session.id]: [] }));
             setActiveSessionId(session.id);
@@ -323,6 +347,8 @@ export const App = () => {
           onMessagesChange={handleMessagesChange}
           attachments={attachments}
           onAttachmentsChange={setAttachments}
+          // 实际项目中，这里应替换为真实API调用
+          // 数据流：发送消息 → onSendMessage → createSendHandler → API调用 → 更新消息列表
           onSendMessage={createSendHandler(setMessages, activeSessionId)}
           onAttachmentsSelect={createUploadHandler(setAttachments)}
           onCancelUpload={(file) => {

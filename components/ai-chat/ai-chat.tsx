@@ -1064,28 +1064,6 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
             })}
             
             <div className="flex min-h-0 flex-1 flex-col">
-              {attachmentList.length ? (
-                <div className="border-b border-slate-100">
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {/* {attachmentList.map((file) => (
-                      <AttachmentCard
-                        key={file.id}
-                        file={file}
-                        onCancel={(target) => {
-                          if (onCancelUpload) {
-                            onCancelUpload(target);
-                            return;
-                          }
-                          setAttachmentList((prev) =>
-                            prev.filter((item) => item.id !== target.id),
-                          );
-                        }}
-                      />
-                    ))} */}
-                  </div>
-                </div>
-              ) : null}
-
               <Thread
                 messageComponents={undefined}
                 assistantPartComponents={customToolComponents}
@@ -1109,6 +1087,8 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
                       : "AI 生成，仅供参考"}
                   </div>
                 }
+                attachments={attachmentList}
+                onAttachmentsChange={setAttachmentList}
               />
             </div>
 
