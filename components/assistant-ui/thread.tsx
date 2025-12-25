@@ -47,6 +47,10 @@ type ThreadProps = {
   composerAttachment?: ReactNode;
   composerAttachments?: ReactNode;
   composerActionSlot?: ReactNode;
+  composerActionLeftSlot?: ReactNode;
+  composerActionRightSlot?: ReactNode;
+  hideComposerSendButton?: boolean;
+  composerInputPlaceholder?: string;
   composerFooter?: ReactNode;
 };
 
@@ -57,6 +61,10 @@ export const Thread: FC<ThreadProps> = ({
   composerAttachment,
   composerAttachments,
   composerActionSlot,
+  composerActionLeftSlot,
+  composerActionRightSlot,
+  hideComposerSendButton,
+  composerInputPlaceholder,
   composerFooter,
 }) => {
   const AssistantMessageSlot: FC = () => (
@@ -95,6 +103,10 @@ export const Thread: FC<ThreadProps> = ({
               composerAttachment={composerAttachment}
               composerAttachments={composerAttachments}
               composerActionSlot={composerActionSlot}
+              composerActionLeftSlot={composerActionLeftSlot}
+              composerActionRightSlot={composerActionRightSlot}
+              hideComposerSendButton={hideComposerSendButton}
+              composerInputPlaceholder={composerInputPlaceholder}
               composerFooter={composerFooter}
             />
           </ThreadPrimitive.Viewport>
@@ -209,6 +221,10 @@ type ComposerProps = {
   composerAttachment?: ReactNode;
   composerAttachments?: ReactNode;
   composerActionSlot?: ReactNode;
+  composerActionLeftSlot?: ReactNode;
+  composerActionRightSlot?: ReactNode;
+  hideComposerSendButton?: boolean;
+  composerInputPlaceholder?: string;
   composerFooter?: ReactNode;
 };
 
@@ -217,6 +233,10 @@ const Composer: FC<ComposerProps> = ({
   composerAttachment,
   composerAttachments,
   composerActionSlot,
+  composerActionLeftSlot,
+  composerActionRightSlot,
+  hideComposerSendButton,
+  composerInputPlaceholder,
   composerFooter,
 }) => {
   return (
@@ -228,7 +248,7 @@ const Composer: FC<ComposerProps> = ({
           {composerAttachments ?? <ComposerAttachments />}
 
           <ComposerPrimitive.Input
-            placeholder="Send a message..."
+            placeholder={composerInputPlaceholder ?? "Send a message..."}
             className="aui-composer-input mb-1 max-h-32 min-h-16 w-full resize-none bg-transparent px-3.5 pt-1.5 pb-3 text-base outline-none placeholder:text-muted-foreground focus-visible:ring-0"
             rows={1}
             autoFocus
@@ -238,6 +258,9 @@ const Composer: FC<ComposerProps> = ({
             composerActionModules={composerActionModules}
             composerAttachment={composerAttachment}
             composerActionSlot={composerActionSlot}
+            composerActionLeftSlot={composerActionLeftSlot}
+            composerActionRightSlot={composerActionRightSlot}
+            hideComposerSendButton={hideComposerSendButton}
           />
         </ComposerPrimitive.AttachmentDropzone>
       </ComposerPrimitive.Root>
@@ -250,12 +273,18 @@ type ComposerActionProps = {
   composerActionModules?: ComposerActionModule[];
   composerAttachment?: ReactNode;
   composerActionSlot?: ReactNode;
+  composerActionLeftSlot?: ReactNode;
+  composerActionRightSlot?: ReactNode;
+  hideComposerSendButton?: boolean;
 };
 
 const ComposerAction: FC<ComposerActionProps> = ({
   composerActionModules,
   composerAttachment,
   composerActionSlot,
+  composerActionLeftSlot,
+  composerActionRightSlot,
+  hideComposerSendButton,
 }) => {
   return (
     <div className="aui-composer-action-wrapper relative mx-1 mt-2 mb-2 flex items-center justify-between">
@@ -263,37 +292,42 @@ const ComposerAction: FC<ComposerActionProps> = ({
         {composerAttachment ?? <ComposerAddAttachment />}
         <ComposerActionModules modules={composerActionModules} />
         {composerActionSlot}
+        {composerActionLeftSlot}
       </div>
 
-      <ThreadPrimitive.If running={false}>
-        <ComposerPrimitive.Send asChild>
-          <TooltipIconButton
-            tooltip="Send message"
-            side="bottom"
-            type="submit"
-            variant="default"
-            size="icon"
-            className="aui-composer-send size-[34px] rounded-full p-1"
-            aria-label="Send message"
-          >
-            <ArrowUpIcon className="aui-composer-send-icon size-5" />
-          </TooltipIconButton>
-        </ComposerPrimitive.Send>
-      </ThreadPrimitive.If>
-
-      <ThreadPrimitive.If running>
-        <ComposerPrimitive.Cancel asChild>
-          <Button
-            type="button"
-            variant="default"
-            size="icon"
-            className="aui-composer-cancel size-[34px] rounded-full border border-muted-foreground/60 hover:bg-primary/75 dark:border-muted-foreground/90"
-            aria-label="Stop generating"
-          >
-            <Square className="aui-composer-cancel-icon size-3.5 fill-white dark:fill-black" />
-          </Button>
-        </ComposerPrimitive.Cancel>
-      </ThreadPrimitive.If>
+      <div className="aui-composer-action-right flex items-center gap-2">
+        {composerActionRightSlot}
+        {hideComposerSendButton ? null : (
+          <ThreadPrimitive.If running={false}>
+            <ComposerPrimitive.Send asChild>
+              <TooltipIconButton
+                tooltip="Send message"
+                side="bottom"
+                type="submit"
+                variant="default"
+                size="icon"
+                className="aui-composer-send size-[34px] rounded-full p-1"
+                aria-label="Send message"
+              >
+                <ArrowUpIcon className="aui-composer-send-icon size-5" />
+              </TooltipIconButton>
+            </ComposerPrimitive.Send>
+          </ThreadPrimitive.If>
+        )}
+        <ThreadPrimitive.If running>
+          <ComposerPrimitive.Cancel asChild>
+            <Button
+              type="button"
+              variant="default"
+              size="icon"
+              className="aui-composer-cancel size-[34px] rounded-full border border-muted-foreground/60 hover:bg-primary/75 dark:border-muted-foreground/90"
+              aria-label="Stop generating"
+            >
+              <Square className="aui-composer-cancel-icon size-3.5 fill-white dark:fill-black" />
+            </Button>
+          </ComposerPrimitive.Cancel>
+        </ThreadPrimitive.If>
+      </div>
     </div>
   );
 };
