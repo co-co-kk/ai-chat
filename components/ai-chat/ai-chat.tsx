@@ -33,7 +33,10 @@ import {
   Pin,
   Plus,
   X,
+  CircleX,
   TriangleAlert,
+  Maximize,
+  Minimize,
 } from "lucide-react";
 
 import { Thread } from "@/components/assistant-ui/thread";
@@ -93,6 +96,9 @@ export type AiChatState = {
     role?: AiChatMessageRole;
     type?: string;
   }) => Promise<void>;
+  openCustomDrawer: (drawerId: string) => void;
+  closeCustomDrawer: (drawerId: string) => void;
+  toggleCustomDrawer: (drawerId: string) => void;
 };
 
 export type AiChatHandle = {
@@ -144,6 +150,12 @@ export type AiChatProps = {
   onCancelUpload?: (file: AiChatFile) => void;
   placeholder?: string;
   disabled?: boolean;
+  customDrawers?: Array<{
+    id: string;
+    title: string;
+    content: ReactNode;
+  }>;
+  onDrawerToggle?: (drawerId: string, open: boolean) => void;
 };
 
 const useControllableState = <T,>({
@@ -553,6 +565,8 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
       onCancelUpload,
       placeholder = "我有什么可以帮您的吗？",
       disabled = false,
+      customDrawers,
+      onDrawerToggle,
     },
     ref,
   ) => {
@@ -573,6 +587,10 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
     const [internalMode, setInternalMode] =
       useState<AiChatLayoutMode>("standard");
     const [internalOpen, setInternalOpen] = useState(true);
+    
+    // 添加自定义抽屉状态管理
+    const [customDrawersState, setCustomDrawersState] = useState<Record<string, boolean>>({});
+    
     const [messageList, setMessageList] = useControllableState({
       value: messages,
       defaultValue: defaultMessages,
@@ -615,6 +633,20 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
         setMessageList(nextMessages);
       }
     }, [activeSessionId, messages, sessionMessages, setMessageList]);
+    
+    // 初始化自定义抽屉状态
+    useEffect(() => {
+      if (customDrawers && customDrawers.length > 0) {
+        const initialDrawersState: Record<string, boolean> = {};
+        customDrawers.forEach(drawer => {
+          initialDrawersState[drawer.id] = false;
+        });
+        setCustomDrawersState(prev => ({
+          ...prev,
+          ...initialDrawersState
+        }));
+      }
+    }, [customDrawers]);
 
     const appendMessage = useCallback(
       (message: AiChatMessage) => {
@@ -651,6 +683,32 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
       },
       [onSessionChange],
     );
+
+    // 自定义抽屉控制函数
+    const openCustomDrawer = useCallback((drawerId: string) => {
+      setCustomDrawersState(prev => {
+        const newState = { ...prev, [drawerId]: true };
+        onDrawerToggle?.(drawerId, true);
+        return newState;
+      });
+    }, [onDrawerToggle]);
+
+    const closeCustomDrawer = useCallback((drawerId: string) => {
+      setCustomDrawersState(prev => {
+        const newState = { ...prev, [drawerId]: false };
+        onDrawerToggle?.(drawerId, false);
+        return newState;
+      });
+    }, [onDrawerToggle]);
+
+    const toggleCustomDrawer = useCallback((drawerId: string) => {
+      setCustomDrawersState(prev => {
+        const isOpen = !!prev[drawerId];
+        const newState = { ...prev, [drawerId]: !isOpen };
+        onDrawerToggle?.(drawerId, !isOpen);
+        return newState;
+      });
+    }, [onDrawerToggle]);
 
     const handleToggleMode = useCallback(() => {
       const nextMode = resolvedMode === "wide" ? "standard" : "wide";
@@ -732,6 +790,9 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
         appendMessage,
         clearMessages,
         sendMessage,
+        openCustomDrawer,
+        closeCustomDrawer,
+        toggleCustomDrawer,
       }),
       [
         appendMessage,
@@ -743,6 +804,9 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
         onInputChange,
         sendMessage,
         setAttachmentList,
+        openCustomDrawer,
+        closeCustomDrawer,
+        toggleCustomDrawer,
       ],
     );
 
@@ -906,16 +970,16 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
                   <button
                     type="button"
                     onClick={handleCreateSession}
-                    className="flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700"
+                    className="flex items-center gap-1 w-[72px] h-[30px] rounded-[6px] bg-[#002FA7] px-[5px] text-xs text-[#fff] hover:bg-[#002FA7] cursor-pointer"
                   >
-                    <Plus className="size-3" />
+                    <Plus className="size-4" />
                     新会话
                   </button>
                   <button
                     type="button"
                     onClick={() => setHistoryOpen((prev) => !prev)}
                     className={cn(
-                      "flex size-7 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-100",
+                      "flex size-7 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 cursor-pointer",
                       historyOpen && "border-blue-200 text-blue-600",
                     )}
                     aria-label="历史会话"
@@ -925,16 +989,16 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
                   <button
                     type="button"
                     onClick={handleToggleMode}
-                    className="flex size-7 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-100"
+                    className="flex size-7 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 cursor-pointer"
                     aria-label="展开/收缩"
                   >
-                    <PanelRight className="size-4" />
+                    {internalMode == 'standard'?<Maximize className="size-4" />:<Minimize className="size-4" />}
                   </button>
                   <button
                     type="button"
                     onClick={() => setIsPinned((prev) => !prev)}
                     className={cn(
-                      "flex size-7 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-100",
+                      "flex size-7 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 cursor-pointer",
                       isPinned && "border-blue-200 text-blue-600",
                     )}
                     aria-label="固定"
@@ -944,10 +1008,10 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
                   <button
                     type="button"
                     onClick={() => handleToggleOpen(false)}
-                    className="flex size-7 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-100"
+                    className="flex size-7 items-center justify-center rounded-full text-slate-500 cursor-pointer hover:bg-slate-100"
                     aria-label="关闭"
                   >
-                    <X className="size-4" />
+                    <CircleX className="size-4" />
                   </button>
                 </>
               ) : null}
@@ -970,11 +1034,40 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
               />
             ) : null}
             {historyDrawer}
+            
+            {/* 渲染自定义抽屉 */}
+            {customDrawers?.map((drawer) => {
+              const isOpen = customDrawersState[drawer.id] || false;
+              return (
+                <div
+                  key={drawer.id}
+                  className={cn(
+                    "absolute inset-y-0 right-0 z-20 w-72 border-l border-slate-200 bg-white shadow-[-12px_0_24px_rgba(15,23,42,0.08)] transition-transform",
+                    isOpen ? "translate-x-0" : "translate-x-full",
+                  )}
+                >
+                  <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
+                    {drawer.title}
+                    <button
+                      type="button"
+                      onClick={() => closeCustomDrawer(drawer.id)}
+                      className="flex size-6 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </div>
+                  <div className="h-full overflow-y-auto px-4 py-3">
+                    {drawer.content}
+                  </div>
+                </div>
+              );
+            })}
+            
             <div className="flex min-h-0 flex-1 flex-col">
               {attachmentList.length ? (
-                <div className="border-b border-slate-100 bg-white px-4 py-3">
+                <div className="border-b border-slate-100">
                   <div className="grid gap-2 sm:grid-cols-2">
-                    {attachmentList.map((file) => (
+                    {/* {attachmentList.map((file) => (
                       <AttachmentCard
                         key={file.id}
                         file={file}
@@ -988,7 +1081,7 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
                           );
                         }}
                       />
-                    ))}
+                    ))} */}
                   </div>
                 </div>
               ) : null}

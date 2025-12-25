@@ -241,8 +241,50 @@ export const App = () => {
     [],
   );
 
+  // 自定义抽屉内容
+  const customDrawerContent = (
+    <div className="space-y-3">
+      <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+        这是一个自定义抽屉内容
+      </div>
+      <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+        可以放置任何内容
+      </div>
+      <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+        比如知识库、工具列表等
+      </div>
+    </div>
+  );
+
+  const customDrawers = [
+    {
+      id: 'knowledge-base',
+      title: '知识库',
+      content: customDrawerContent,
+    },
+    {
+      id: 'tools-panel',
+      title: '工具面板',
+      content: (
+        <div className="space-y-3">
+          <div className="text-sm font-medium text-slate-700">可用工具</div>
+          <div className="space-y-2">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+              <div className="font-medium text-slate-600">文档分析</div>
+              <div className="text-[11px] text-slate-400">分析上传的文档内容</div>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+              <div className="font-medium text-slate-600">网页搜索</div>
+              <div className="text-[11px] text-slate-400">实时搜索网络信息</div>
+            </div>
+          </div>
+        </div>
+      ),
+    }
+  ];
+
   return (
-    <div className="min-h-dvh bg-[#f5f7fb] px-6 py-8 text-slate-700">
+    <div className="min-h-dvh bg-[#f5f7fb] px-6 py-8 text-slate-700 flex flex-col h-full">
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="text-lg font-semibold">AiChat 组件库演示</div>
@@ -258,11 +300,12 @@ export const App = () => {
           打开聊天组件
         </button>
       </div>
-
-      <div className="grid gap-6 lg:grid-cols-2">
+    {/* grid gap-6 lg:grid-cols-2 */}
+      <div className="h-full flex-1 ">
         <AiChat
-          title="标准模式"
+          title="标题文案"
           mode="standard"
+          // mode="wide"
           open={openChat}
           onOpenChange={setOpenChat}
           sessions={sessions}
@@ -285,36 +328,46 @@ export const App = () => {
           onCancelUpload={(file) => {
             chatService.cancelUpload(file.id).then(setAttachments);
           }}
-          headerExtra={headerActions}
-          inputLeftSlot={({ currentInput }) => (
+          // headerExtra={headerActions}
+          inputLeftSlot={({ currentInput, openCustomDrawer, toggleCustomDrawer }) => (
             <div className="flex items-center gap-2">
-              <button className="flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600">
+              <button 
+                className="flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600"
+                onClick={() => toggleCustomDrawer('knowledge-base')}
+              >
                 能力
                 <ChevronDown className="size-3" />
+              </button>
+              <button
+                className="flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600"
+                onClick={() => toggleCustomDrawer('tools-panel')}
+              >
+                工具
               </button>
               <div className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-500">
                 输入中：{currentInput.length} 字
               </div>
             </div>
           )}
-          inputRightSlot={({ sendMessage }) => (
-            <button
-              type="button"
-              onClick={() => void sendMessage()}
-              className="rounded-full border border-blue-200 px-3 py-1 text-xs text-blue-600 hover:bg-blue-50"
-            >
-              一键发送
-            </button>
-          )}
+          // inputRightSlot={({ sendMessage }) => (
+          //   <button
+          //     type="button"
+          //     onClick={() => void sendMessage()}
+          //     className="rounded-full border border-blue-200 px-3 py-1 text-xs text-blue-600 hover:bg-blue-50"
+          //   >
+          //     一键发送
+          //   </button>
+          // )}
           composerFooterSlot={() => (
             <div className="text-center text-xs text-slate-400">
               AI 生成，仅供参考
             </div>
           )}
           customRenderers={renderers}
+          customDrawers={customDrawers}
         />
 
-        <AiChat
+        {/* <AiChat
           title="宽屏模式"
           mode="wide"
           sessions={sessions}
@@ -363,10 +416,10 @@ export const App = () => {
               </div>
             </div>
           }
-        />
+        /> */}
       </div>
 
-      <div className="mt-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      {/* <div className="mt-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
           <div className="text-sm font-semibold text-slate-700">知识库场景</div>
           <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -468,7 +521,7 @@ export const App = () => {
             }
           />
         </div>
-      </div>
+      </div> */}
     </div>
   );
 };

@@ -82,7 +82,8 @@ export const Thread: FC<ThreadProps> = ({
         >
           <ThreadPrimitive.Viewport className="aui-thread-viewport relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll bg-slate-50 px-4">
             <ThreadPrimitive.If empty>
-              <ThreadWelcome />
+              {/* <ThreadWelcome /> */}
+              <div className="flex-1"></div>
             </ThreadPrimitive.If>
 
           <ThreadPrimitive.Messages
