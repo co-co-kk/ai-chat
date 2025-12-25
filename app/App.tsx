@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Clipboard, Maximize2, RefreshCw } from "lucide-react";
+import {
+  Clipboard,
+  Maximize2,
+  RefreshCw,
+  Share2,
+  SquarePlus,
+} from "lucide-react";
 
 import {
   AiChat,
@@ -87,9 +93,7 @@ const InputSlot = ({ state }: { state: AiChatState }) => (
   <div className="flex items-center gap-2">
     <InputToolButton
       label="引用"
-      onClick={() =>
-        state.setInput(`${state.currentInput}「引用自历史消息」`)
-      }
+      onClick={() => state.setInput(`${state.currentInput}「引用自历史消息」`)}
     />
     <InputToolButton
       label="清空"
@@ -99,39 +103,61 @@ const InputSlot = ({ state }: { state: AiChatState }) => (
   </div>
 );
 
+const libraryRows = Array.from({ length: 7 }).map((_, index) => ({
+  id: `doc-${index + 1}`,
+  name: `文档库文档库文档库文档库文档库文档库文档库${index + 1}`,
+  size: "200G",
+  owner: "鸡米花",
+  date: "2025-10-11",
+}));
+
 export const App = () => {
   const [messages, setMessages] = useState<AiChatMessage[]>([]);
   const [attachments, setAttachments] = useState<AiChatFile[]>([]);
+  const [workspaceMessages, setWorkspaceMessages] = useState<AiChatMessage[]>([]);
+  const [workspaceAttachments, setWorkspaceAttachments] = useState<AiChatFile[]>([]);
 
   useEffect(() => {
-    chatService.listMessages().then(setMessages);
+    chatService.listMessages().then((data) => {
+      setMessages(data);
+      setWorkspaceMessages(data);
+    });
   }, []);
 
-  const handleSendMessage = async ({
-    text,
-    attachments: files,
-  }: {
-    text: string;
-    attachments: AiChatFile[];
-  }) => {
-    const reply = await chatService.sendMessage(text, files);
-    setMessages((prev) => [...prev, reply]);
-  };
+  const createSendHandler =
+    (setMessageList: (value: AiChatMessage[] | ((prev: AiChatMessage[]) => AiChatMessage[])) => void) =>
+    async ({
+      text,
+      attachments: files,
+    }: {
+      text: string;
+      attachments: AiChatFile[];
+    }) => {
+      const reply = await chatService.sendMessage(text, files);
+      setMessageList((prev) => [...prev, reply]);
+    };
 
-  const handleUpload = async (files: File[]) => {
-    const next = files.map((file) => ({
-      id: `${file.name}-${Date.now()}`,
-      name: file.name,
-      size: file.size,
-      status: "uploading" as const,
-      progress: 30,
-    }));
-    const merged = [...attachments, ...next];
-    setAttachments(merged);
-    const uploaded = await chatService.uploadFiles(merged);
-    setAttachments(uploaded);
-    return uploaded;
-  };
+  const createUploadHandler =
+    (
+      setFileList: (value: AiChatFile[] | ((prev: AiChatFile[]) => AiChatFile[])) => void,
+    ) =>
+    async (files: File[]) => {
+      const next = files.map((file) => ({
+        id: `${file.name}-${Date.now()}`,
+        name: file.name,
+        size: file.size,
+        status: "uploading" as const,
+        progress: 30,
+      }));
+      let merged: AiChatFile[] = [];
+      setFileList((prev) => {
+        merged = [...prev, ...next];
+        return merged;
+      });
+      const uploaded = await chatService.uploadFiles(merged);
+      setFileList(uploaded);
+      return uploaded;
+    };
 
   const headerActions = useMemo(
     () => (state: AiChatState) => (
@@ -139,12 +165,14 @@ export const App = () => {
         <HeaderButton label={mockTools[0].label} onClick={state.clearMessages} />
         <HeaderButton
           label={mockTools[1].label}
-          onClick={() => state.appendMessage({
-            id: `tool-${Date.now()}`,
-            role: "assistant",
-            type: "text",
-            content: "已切换到高阶模型。",
-          })}
+          onClick={() =>
+            state.appendMessage({
+              id: `tool-${Date.now()}`,
+              role: "assistant",
+              type: "text",
+              content: "已切换到高阶模型。",
+            })
+          }
         />
         <HeaderButton label={mockTools[2].label} onClick={() => undefined} />
         <button
@@ -158,12 +186,21 @@ export const App = () => {
     [],
   );
 
+  const renderers = useMemo(
+    () => ({
+      "analysis-card": (message: AiChatMessage) => (
+        <RendererCard message={message} />
+      ),
+    }),
+    [],
+  );
+
   return (
     <div className="min-h-dvh bg-[#f5f7fb] px-6 py-8 text-slate-700">
       <div className="mb-6 flex items-center gap-3">
         <div className="text-lg font-semibold">AiChat 组件库演示</div>
         <span className="rounded-full bg-blue-100 px-2 py-1 text-xs text-blue-600">
-          React + TypeScript + Tailwind
+          React + TypeScript + Tailwind + assistant-ui
         </span>
       </div>
 
@@ -175,8 +212,8 @@ export const App = () => {
           onMessagesChange={setMessages}
           attachments={attachments}
           onAttachmentsChange={setAttachments}
-          onSendMessage={handleSendMessage}
-          onAttachmentsSelect={handleUpload}
+          onSendMessage={createSendHandler(setMessages)}
+          onAttachmentsSelect={createUploadHandler(setAttachments)}
           onCancelUpload={(file) => {
             chatService.cancelUpload(file.id).then(setAttachments);
           }}
@@ -200,9 +237,7 @@ export const App = () => {
               AI 生成，仅供参考
             </div>
           )}
-          customRenderers={{
-            "analysis-card": (message) => <RendererCard message={message} />,
-          }}
+          customRenderers={renderers}
         />
 
         <AiChat
@@ -212,8 +247,8 @@ export const App = () => {
           onMessagesChange={setMessages}
           attachments={attachments}
           onAttachmentsChange={setAttachments}
-          onSendMessage={handleSendMessage}
-          onAttachmentsSelect={handleUpload}
+          onSendMessage={createSendHandler(setMessages)}
+          onAttachmentsSelect={createUploadHandler(setAttachments)}
           onCancelUpload={(file) => {
             chatService.cancelUpload(file.id).then(setAttachments);
           }}
@@ -228,9 +263,7 @@ export const App = () => {
               复制({currentInput.length})
             </button>
           )}
-          customRenderers={{
-            "analysis-card": (message) => <RendererCard message={message} />,
-          }}
+          customRenderers={renderers}
           sidePanel={
             <div className="space-y-3 text-xs text-slate-500">
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
@@ -246,6 +279,93 @@ export const App = () => {
             </div>
           }
         />
+      </div>
+
+      <div className="mt-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="mb-4 flex items-center justify-between">
+          <div className="text-sm font-semibold text-slate-700">知识库场景</div>
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <button className="flex items-center gap-1 rounded-md border border-slate-200 px-3 py-1">
+              <SquarePlus className="size-3" />
+              新建文件夹
+            </button>
+            <button className="flex items-center gap-1 rounded-md border border-slate-200 px-3 py-1">
+              <Share2 className="size-3" />
+              分享设置
+            </button>
+          </div>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="overflow-hidden rounded-xl border border-slate-200">
+            <div className="grid grid-cols-[2fr_1fr_1fr_1fr] gap-2 border-b border-slate-100 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-500">
+              <span>文件名</span>
+              <span>文件大小</span>
+              <span>所有者</span>
+              <span>创建时间</span>
+            </div>
+            {libraryRows.map((row, index) => (
+              <div
+                key={row.id}
+                className={cn(
+                  "grid grid-cols-[2fr_1fr_1fr_1fr] gap-2 px-4 py-3 text-xs text-slate-600",
+                  index % 2 === 0 ? "bg-white" : "bg-slate-50",
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="size-8 rounded-md bg-blue-50" />
+                  <span className="line-clamp-1">{row.name}</span>
+                </div>
+                <span>{row.size}</span>
+                <span>{row.owner}</span>
+                <div className="flex items-center justify-between">
+                  <span>{row.date}</span>
+                  <div className="flex items-center gap-2">
+                    <button className="flex items-center gap-1 rounded-md border border-blue-200 px-2 py-1 text-[11px] text-blue-600">
+                      <SquarePlus className="size-3" />
+                      添加到对话
+                    </button>
+                    <button className="rounded-md border border-slate-200 px-2 py-1 text-[11px] text-slate-500">
+                      共享设置
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <AiChat
+            title="文档库助手"
+            mode="wide"
+            messages={workspaceMessages}
+            onMessagesChange={setWorkspaceMessages}
+            attachments={workspaceAttachments}
+            onAttachmentsChange={setWorkspaceAttachments}
+            onSendMessage={createSendHandler(setWorkspaceMessages)}
+            onAttachmentsSelect={createUploadHandler(setWorkspaceAttachments)}
+            onCancelUpload={(file) => {
+              chatService.cancelUpload(file.id).then(setWorkspaceAttachments);
+            }}
+            headerExtra={headerActions}
+            inputLeftSlot={({ currentInput }) => (
+              <div className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-500">
+                已选文件 {workspaceAttachments.length} | 输入 {currentInput.length}
+              </div>
+            )}
+            customRenderers={renderers}
+            sidePanel={
+              <div className="space-y-3 text-xs text-slate-500">
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                  任务面板
+                  <RefreshCw className="size-3" />
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                  支持将选中文档作为上下文加入对话。
+                </div>
+              </div>
+            }
+          />
+        </div>
       </div>
     </div>
   );

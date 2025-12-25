@@ -3,25 +3,32 @@
 import {
   forwardRef,
   useCallback,
+  useEffect,
   useImperativeHandle,
   useMemo,
   useState,
 } from "react";
 import type {
-  ReactNode,
   ChangeEvent,
+  ComponentProps,
   Dispatch,
+  ReactNode,
   SetStateAction,
 } from "react";
 import {
-  FileArchive,
-  FileImage,
-  FileText,
-  Paperclip,
-  Send,
-  TriangleAlert,
-} from "lucide-react";
+  AssistantRuntimeProvider,
+  type ThreadMessageLike,
+  useAssistantApi,
+  useAssistantState,
+} from "@assistant-ui/react";
+import { AssistantChatTransport, useChatRuntime } from "@assistant-ui/react-ai-sdk";
+import { FileArchive, FileImage, FileText, TriangleAlert } from "lucide-react";
 
+import { Thread } from "@/components/assistant-ui/thread";
+import {
+  ResourceSummaryToolCard,
+  WorkflowToolCard,
+} from "@/components/assistant-ui/tool-call-cards";
 import { cn } from "@/lib/utils";
 
 export type AiChatLayoutMode = "standard" | "wide";
@@ -247,6 +254,154 @@ const AttachmentCard = ({
   );
 };
 
+const toThreadMessages = (
+  messages: AiChatMessage[],
+  customRenderers: AiChatProps["customRenderers"],
+): ThreadMessageLike[] =>
+  messages.map((message) => {
+    if (message.type && customRenderers?.[message.type]) {
+      return {
+        id: message.id,
+        role: message.role,
+        content: [
+          {
+            type: "tool-call",
+            toolName: message.type,
+            toolCallId: `${message.id}-tool-call`,
+            args: { message },
+            argsText: JSON.stringify({ message }),
+          },
+        ],
+      };
+    }
+
+    return {
+      id: message.id,
+      role: message.role,
+      content: [
+        {
+          type: "text",
+          text: message.content ?? "",
+        },
+      ],
+    };
+  });
+
+const CustomToolCall = ({
+  renderer,
+  state,
+}: {
+  renderer: (message: AiChatMessage, state: AiChatState) => ReactNode;
+  state: AiChatState;
+}) => {
+  const message = useAssistantState(({ part }) => {
+    const args = (part?.args as { message?: AiChatMessage } | undefined) ?? {};
+    return args.message;
+  });
+
+  if (!message) return null;
+  const composerText = useAssistantState(({ composer }) => composer.text ?? "");
+  return (
+    <>
+      {renderer(message, {
+        ...state,
+        input: composerText,
+        currentInput: composerText,
+      })}
+    </>
+  );
+};
+
+const ComposerSlot = ({
+  state,
+  renderSlot,
+}: {
+  state: AiChatState;
+  renderSlot?: (state: AiChatState) => ReactNode;
+}) => {
+  const api = useAssistantApi();
+  const composerText = useAssistantState(({ composer }) => composer.text ?? "");
+
+  const bridgedState = useMemo<AiChatState>(
+    () => ({
+      ...state,
+      input: composerText,
+      currentInput: composerText,
+      setInput: (next) => {
+        const resolved =
+          typeof next === "function" ? next(composerText) : next;
+        api.composer().setText(resolved);
+        state.setInput(resolved);
+      },
+    }),
+    [api, composerText, state],
+  );
+
+  return <>{renderSlot?.(bridgedState)}</>;
+};
+
+const ComposerSync = ({
+  onTextChange,
+  resetSignal,
+}: {
+  onTextChange: (value: string) => void;
+  resetSignal: number;
+}) => {
+  const api = useAssistantApi();
+  const composerText = useAssistantState(({ composer }) => composer.text ?? "");
+
+  useEffect(() => {
+    onTextChange(composerText);
+  }, [composerText, onTextChange]);
+
+  useEffect(() => {
+    api.composer().setText("");
+  }, [api, resetSignal]);
+
+  return null;
+};
+
+const AttachmentPicker = ({
+  disabled,
+  onAttachmentsSelect,
+  setAttachments,
+}: {
+  disabled?: boolean;
+  onAttachmentsSelect?: AiChatProps["onAttachmentsSelect"];
+  setAttachments: Dispatch<SetStateAction<AiChatFile[]>>;
+}) => {
+  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    if (!files.length) return;
+    const result = await onAttachmentsSelect?.(files);
+    if (Array.isArray(result)) {
+      setAttachments(result);
+      return;
+    }
+    const nextFiles = files.map((file) => ({
+      id: createId(),
+      name: file.name,
+      size: file.size,
+      status: "uploading" as AiChatFileStatus,
+      progress: 0,
+    }));
+    setAttachments((prev) => [...prev, ...nextFiles]);
+  };
+
+  return (
+    <label className="flex cursor-pointer items-center gap-1 rounded-full border border-slate-200 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50">
+      上传文件
+      <input
+        type="file"
+        multiple
+        className="hidden"
+        onChange={handleFileChange}
+        disabled={disabled}
+      />
+    </label>
+  );
+};
+
 export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
   (
     {
@@ -275,8 +430,18 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
     },
     ref,
   ) => {
+    const runtime = useChatRuntime({
+      transport: new AssistantChatTransport({
+        api: "/api/chat",
+        fetch: async () => {
+          throw new Error("Mock mode: 使用本地数据");
+        },
+      }),
+    });
+
     const [input, setInput] = useState("");
     const [isSending, setIsSending] = useState(false);
+    const [composerResetSignal, setComposerResetSignal] = useState(0);
     const [messageList, setMessageList] = useControllableState({
       value: messages,
       defaultValue: defaultMessages,
@@ -320,6 +485,7 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
         appendMessage(message);
         setInput("");
         setAttachmentList([]);
+        setComposerResetSignal((prev) => prev + 1);
         setIsSending(true);
         try {
           await onSendMessage?.({
@@ -352,10 +518,9 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
         attachments: attachmentList,
         isSending,
         setInput: (next) => {
-          setInput(next);
-          if (typeof next === "string") {
-            onInputChange?.(next);
-          }
+          const resolved = typeof next === "function" ? next(input) : next;
+          setInput(resolved);
+          onInputChange?.(resolved);
         },
         setAttachments: setAttachmentList,
         appendMessage,
@@ -363,8 +528,8 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
         sendMessage,
       }),
       [
-        attachmentList,
         appendMessage,
+        attachmentList,
         clearMessages,
         input,
         isSending,
@@ -375,176 +540,164 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
       ],
     );
 
-    const handleInputChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
-      const value = event.target.value;
-      setInput(value);
-      onInputChange?.(value);
-    };
+    const handleComposerTextChange = useCallback(
+      (value: string) => {
+        setInput(value);
+        onInputChange?.(value);
+      },
+      [onInputChange],
+    );
 
-    const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
-      const files = Array.from(event.target.files ?? []);
-      if (!files.length) return;
-      const result = await onAttachmentsSelect?.(files);
-      if (Array.isArray(result)) {
-        setAttachmentList(result);
-        return;
-      }
-      const nextFiles = files.map((file) => ({
-        id: createId(),
-        name: file.name,
-        size: file.size,
-        status: "success" as AiChatFileStatus,
-      }));
-      setAttachmentList((prev) => [...prev, ...nextFiles]);
-    };
+    const threadMessages = useMemo(
+      () => toThreadMessages(messageList, customRenderers),
+      [customRenderers, messageList],
+    );
+
+    useEffect(() => {
+      runtime.thread.reset(threadMessages);
+    }, [runtime, threadMessages]);
+
+    const customToolComponents = useMemo(() => {
+      if (!customRenderers) return undefined;
+      return {
+        tools: {
+          by_name: {
+            workflow: WorkflowToolCard,
+            "resource-summary": ResourceSummaryToolCard,
+            ...Object.fromEntries(
+              Object.entries(customRenderers).map(([key, renderer]) => [
+                key,
+                () => <CustomToolCall renderer={renderer} state={state} />,
+              ]),
+            ),
+          },
+        },
+      } as ComponentProps<typeof Thread>["assistantPartComponents"];
+    }, [customRenderers, state]);
+
+    const renderInputLeftSlot = useCallback(
+      (slotState: AiChatState) => (
+        <>
+          {onAttachmentsSelect ? (
+            <AttachmentPicker
+              disabled={disabled}
+              onAttachmentsSelect={onAttachmentsSelect}
+              setAttachments={setAttachmentList}
+            />
+          ) : null}
+          {inputLeftSlot?.(slotState)}
+        </>
+      ),
+      [disabled, inputLeftSlot, onAttachmentsSelect, setAttachmentList],
+    );
+
+    const renderInputRightSlot = useCallback(
+      (slotState: AiChatState) =>
+        inputRightSlot?.(slotState) ?? (
+          <button
+            type="button"
+            onClick={() => void slotState.sendMessage()}
+            disabled={disabled || slotState.isSending}
+            className="rounded-full bg-blue-600 px-3 py-1 text-xs text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+          >
+            发送
+          </button>
+        ),
+      [disabled, inputRightSlot],
+    );
 
     return (
-      <div
-        className={cn(
-          "flex h-full w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg",
-          className,
-        )}
-      >
-        <header className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-3">
-          <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-            <div className="flex size-6 items-center justify-center rounded-full bg-blue-50 text-blue-600">
-              <span className="text-xs">🤖</span>
-            </div>
-            <span>{title}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            {headerExtra?.(state)}
-          </div>
-        </header>
-
+      <AssistantRuntimeProvider runtime={runtime}>
+        <ComposerSync
+          onTextChange={handleComposerTextChange}
+          resetSignal={composerResetSignal}
+        />
         <div
           className={cn(
-            "flex flex-1 flex-col bg-white",
-            mode === "wide" && "md:flex-row",
+            "flex h-full w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg",
+            className,
           )}
         >
-          <div className="flex min-h-0 flex-1 flex-col">
-            <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5">
-              {messageList.map((message) => {
-                const renderer =
-                  message.type && customRenderers?.[message.type];
-                if (renderer) {
-                  return (
-                    <div key={message.id} className="space-y-2">
-                      {renderer(message, state)}
-                    </div>
-                  );
-                }
-                const isUser = message.role === "user";
-                return (
-                  <div
-                    key={message.id}
-                    className={cn(
-                      "flex w-full",
-                      isUser ? "justify-end" : "justify-start",
-                    )}
-                  >
-                    <div
-                      className={cn(
-                        "max-w-[80%] space-y-2 rounded-2xl px-4 py-3 text-sm shadow-sm",
-                        isUser
-                          ? "bg-blue-600 text-white"
-                          : "bg-slate-100 text-slate-700",
-                      )}
-                    >
-                      {message.content ? (
-                        <p className="whitespace-pre-wrap">{message.content}</p>
-                      ) : null}
-                      {message.files?.length ? (
-                        <div className="grid gap-2">
-                          {message.files.map((file) => (
-                            <AttachmentCard
-                              key={file.id}
-                              file={file}
-                              onCancel={onCancelUpload}
-                            />
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="border-t border-slate-100 bg-white px-4 py-4">
-              {attachmentList.length ? (
-                <div className="mb-3 grid gap-2 sm:grid-cols-2">
-                  {attachmentList.map((file) => (
-                    <AttachmentCard
-                      key={file.id}
-                      file={file}
-                      onCancel={(target) => {
-                        if (onCancelUpload) {
-                          onCancelUpload(target);
-                          return;
-                        }
-                        setAttachmentList((prev) =>
-                          prev.filter((item) => item.id !== target.id),
-                        );
-                      }}
-                    />
-                  ))}
-                </div>
-              ) : null}
-
-              <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
-                <div className="flex items-center gap-2">
-                  <label className="flex size-9 cursor-pointer items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-50">
-                    <input
-                      type="file"
-                      multiple
-                      className="hidden"
-                      onChange={handleFileChange}
-                      disabled={disabled}
-                    />
-                    <Paperclip className="size-4" />
-                  </label>
-                  {inputLeftSlot?.(state)}
-                </div>
-                <textarea
-                  className="min-h-[44px] flex-1 resize-none bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
-                  placeholder={placeholder}
-                  value={input}
-                  onChange={handleInputChange}
-                  disabled={disabled}
-                />
-                <div className="flex items-center gap-2">
-                  {inputRightSlot?.(state)}
-                  <button
-                    type="button"
-                    onClick={() => void sendMessage()}
-                    disabled={disabled || isSending}
-                    className="flex size-10 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200"
-                  >
-                    <Send className="size-4" />
-                  </button>
-                </div>
+          <header className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <div className="flex size-6 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                <span className="text-xs">🤖</span>
               </div>
-
-              {composerFooterSlot ? (
-                <div className="pt-3">{composerFooterSlot(state)}</div>
-              ) : null}
+              <span>{title}</span>
             </div>
-          </div>
+            <div className="flex items-center gap-2">
+              {headerExtra?.(state)}
+            </div>
+          </header>
 
-          {mode === "wide" && sidePanel ? (
-            <aside
-              className={cn(
-                "border-t border-slate-100 bg-slate-50 px-4 py-4 md:w-80 md:border-l md:border-t-0",
-                sidePanelClassName,
-              )}
-            >
-              {sidePanel}
-            </aside>
-          ) : null}
+          <div
+            className={cn(
+              "flex flex-1 flex-col bg-white",
+              mode === "wide" && "md:flex-row",
+            )}
+          >
+            <div className="flex min-h-0 flex-1 flex-col">
+              {attachmentList.length ? (
+                <div className="border-b border-slate-100 bg-white px-4 py-3">
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {attachmentList.map((file) => (
+                      <AttachmentCard
+                        key={file.id}
+                        file={file}
+                        onCancel={(target) => {
+                          if (onCancelUpload) {
+                            onCancelUpload(target);
+                            return;
+                          }
+                          setAttachmentList((prev) =>
+                            prev.filter((item) => item.id !== target.id),
+                          );
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              <Thread
+                messageComponents={undefined}
+                assistantPartComponents={customToolComponents}
+                composerAttachments={null}
+                composerAttachment={null}
+                composerActionLeftSlot={
+                  <ComposerSlot state={state} renderSlot={renderInputLeftSlot} />
+                }
+                composerActionRightSlot={
+                  <ComposerSlot
+                    state={state}
+                    renderSlot={renderInputRightSlot}
+                  />
+                }
+                hideComposerSendButton
+                composerInputPlaceholder={placeholder}
+                composerFooter={
+                  composerFooterSlot ? (
+                    <div className="px-4 pb-3">
+                      {composerFooterSlot(state)}
+                    </div>
+                  ) : null
+                }
+              />
+            </div>
+
+            {mode === "wide" && sidePanel ? (
+              <aside
+                className={cn(
+                  "border-t border-slate-100 bg-slate-50 px-4 py-4 md:w-80 md:border-l md:border-t-0",
+                  sidePanelClassName,
+                )}
+              >
+                {sidePanel}
+              </aside>
+            ) : null}
+          </div>
         </div>
-      </div>
+      </AssistantRuntimeProvider>
     );
   },
 );
