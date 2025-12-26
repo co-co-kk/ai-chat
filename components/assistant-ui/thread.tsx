@@ -63,6 +63,7 @@ export type ThreadFile = {
 type ThreadProps = {
   messageComponents?: ComponentProps<typeof ThreadPrimitive.Messages>["components"];
   assistantPartComponents?: ComponentProps<typeof MessagePrimitive.Parts>["components"];
+  customMessageRenderers?: Record<string, (message: any) => ReactNode>;
   composerActionModules?: ComposerActionModule[];
   composerAttachment?: ReactNode;
   composerAttachments?: ReactNode;
@@ -79,6 +80,7 @@ type ThreadProps = {
 export const Thread: FC<ThreadProps> = ({
   messageComponents,
   assistantPartComponents,
+  customMessageRenderers,
   composerActionModules,
   composerAttachment,
   composerAttachments,
@@ -92,7 +94,10 @@ export const Thread: FC<ThreadProps> = ({
   onAttachmentsChange,
 }) => {
   const AssistantMessageSlot: FC = () => (
-    <AssistantMessage partComponents={assistantPartComponents} />
+    <AssistantMessage
+      partComponents={assistantPartComponents}
+      customMessageRenderers={customMessageRenderers}
+    />
   );
 
   const handleAttachmentCancel = (target: ThreadFile) => {
@@ -498,13 +503,27 @@ const MessageError: FC = () => {
 
 type AssistantMessageProps = {
   partComponents?: ComponentProps<typeof MessagePrimitive.Parts>["components"];
+  customMessageRenderers?: Record<string, (message: any) => ReactNode>;
 };
 
-const AssistantMessage: FC<AssistantMessageProps> = ({ partComponents }) => {
+const AssistantMessage: FC<AssistantMessageProps> = ({
+  partComponents,
+  customMessageRenderers,
+}) => {
   const tools =
     partComponents?.tools && "Override" in partComponents.tools
       ? partComponents.tools
       : { Fallback: ToolFallback, ...(partComponents?.tools ?? {}) };
+  const customRendererType = useAssistantState(
+    ({ message }) => message.metadata?.custom?.rendererType,
+  );
+  const customRendererMessage = useAssistantState(
+    ({ message }) => message.metadata?.custom?.aiChatMessage,
+  );
+  const customRenderer =
+    customRendererType && customMessageRenderers
+      ? customMessageRenderers[customRendererType]
+      : undefined;
 
   return (
     <MessagePrimitive.Root asChild>
@@ -513,15 +532,19 @@ const AssistantMessage: FC<AssistantMessageProps> = ({ partComponents }) => {
         data-role="assistant"
       >
         <div className="aui-assistant-message-content mx-2 leading-7 break-words text-foreground">
-          <MessagePrimitive.Parts
-            components={{
-              Text: MarkdownText,
-              Reasoning: Reasoning,
-              ReasoningGroup: ReasoningGroup,
-              ...partComponents,
-              tools,
-            }}
-          />
+          {customRenderer && customRendererMessage ? (
+            customRenderer(customRendererMessage)
+          ) : (
+            <MessagePrimitive.Parts
+              components={{
+                Text: MarkdownText,
+                Reasoning: Reasoning,
+                ReasoningGroup: ReasoningGroup,
+                ...partComponents,
+                tools,
+              }}
+            />
+          )}
           <MessageError />
         </div>
 

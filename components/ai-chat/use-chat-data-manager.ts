@@ -6,7 +6,6 @@
 
 import { useRef, useCallback } from 'react';
 import { ThreadMessageLike } from '@assistant-ui/react';
-import { mockSessionMessages } from '../../app/mockData/chat-messages';
 import { AiChatMessage } from './types';
 
 export interface ChatDataManager {
@@ -24,7 +23,7 @@ export interface ChatDataManager {
   debug: (message: string, data?: any) => void;
 }
 
-export const useChatDataManager = (): ChatDataManager => {
+export const useChatDataManager = (sessionMessages?: Record<string, AiChatMessage[]>): ChatDataManager => {
   const debug = useCallback((message: string, data?: any) => {
     console.log(`🔧 [ChatDataManager] ${message}`, data || '');
   }, []);
@@ -34,8 +33,14 @@ export const useChatDataManager = (): ChatDataManager => {
     
     const formatted = messages.map(msg => ({
       id: msg.id,
-      role: msg.role as 'user' | 'assistant',
-      content: msg.content || ''
+      role: msg.role as 'user' | 'assistant' | 'system',
+      content: msg.content || '',
+      metadata: {
+        custom: {
+          rendererType: msg.type,
+          aiChatMessage: msg,
+        },
+      },
     }));
     
     debug('消息格式化完成', { 格式化后消息数量: formatted.length });
@@ -45,14 +50,14 @@ export const useChatDataManager = (): ChatDataManager => {
   const getCurrentMessages = useCallback((sessionId: string): ThreadMessageLike[] => {
     debug('获取会话消息', { sessionId });
     
-    const sessionMessages = mockSessionMessages[sessionId] || [];
-    debug('查询到的原始消息', { 消息数量: sessionMessages.length, 数据: sessionMessages });
+    const sessionMessagesForId = sessionMessages?.[sessionId] || [];
+    debug('查询到的原始消息', { 消息数量: sessionMessagesForId.length, 数据: sessionMessagesForId });
     
-    const formatted = formatMessages(sessionMessages);
+    const formatted = formatMessages(sessionMessagesForId);
     debug('最终格式化消息', { 消息数量: formatted.length });
     
     return formatted;
-  }, [formatMessages, debug]);
+  }, [formatMessages, debug, sessionMessages]);
 
   const syncToRuntime = useCallback((messages: ThreadMessageLike[], runtime: any) => {
     if (!runtime || !runtime.thread) {
