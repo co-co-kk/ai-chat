@@ -113,20 +113,18 @@ export const Thread: FC<ThreadProps> = ({
         >
           <ThreadPrimitive.Viewport className="aui-thread-viewport relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll bg-slate-50 px-4">
             <ThreadPrimitive.If empty>
-              {/* <ThreadWelcome /> */}
-              <div className="flex-1"></div>
+              <ThreadWelcome />
             </ThreadPrimitive.If>
 
-          <ThreadPrimitive.Messages
-            components={{
-              UserMessage,
-              EditComposer,
-              AssistantMessage: AssistantMessageSlot,
-              ...messageComponents,
-            }}
-          />
-
             <ThreadPrimitive.If empty={false}>
+              <ThreadPrimitive.Messages
+                components={{
+                  UserMessage,
+                  EditComposer,
+                  AssistantMessage: AssistantMessageSlot,
+                  ...messageComponents,
+                }}
+              />
               <div className="aui-thread-viewport-spacer min-h-8 grow" />
             </ThreadPrimitive.If>
              {/* 附件展示区域 */}
