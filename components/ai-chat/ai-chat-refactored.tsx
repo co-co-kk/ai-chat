@@ -27,7 +27,6 @@ import { createId, flattenMessages } from "./utils";
 import { AttachmentCard } from "./components/AttachmentCard";
 import { ChatHeader } from "./components/ChatHeader";
 // 导入mock数据
-import { mockSessionMessages } from '../../app/mockData/chat-messages';
 import { useChatDataManager } from './use-chat-data-manager';
 import { mockChatSessions } from "@/app/mockData/chat-sessions";
 
@@ -125,14 +124,7 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
       onChange: onMessagesChange,
     });
 
-    // 强制同步历史消息到消息列表
-    useEffect(() => {
-      if (activeSessionId) {
-        const sessionMessages = mockSessionMessages[activeSessionId] || [];
-        console.log('🔄 强制更新消息列表:', sessionMessages.length, '条消息');
-        setMessageList(sessionMessages);
-      }
-    }, [activeSessionId]); // 移除setMessageList依赖，避免无限循环
+    // 消息列表由受控 messages/onMessagesChange 驱动，避免在此同步造成循环更新
 
     const [attachmentList, setAttachmentList] = useControllableState({
       value: attachments,
@@ -180,11 +172,11 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
     // 监听会话变化 - 修复runtime未初始化问题
     useEffect(() => {
       console.log('📋 会话已切换:', activeSessionId);
-      console.log('📋 对应消息:', mockSessionMessages[activeSessionId]);
-    }, [activeSessionId]);
+      console.log('📋 对应消息:', sessionMessages?.[activeSessionId]);
+    }, [activeSessionId, sessionMessages]);
 
     // 使用数据管理器 - 清晰的数据流控制
-const dataManager = useChatDataManager();
+const dataManager = useChatDataManager(sessionMessages);
 
 // 运行时配置 - 使用数据管理器动态加载消息
 console.log('📊 创建runtime - 会话ID:', activeSessionId);
@@ -239,7 +231,7 @@ const runtime = useChatRuntime({
     // 测试方法 - 用于调试
     const testSessionSwitch = (sessionId: string) => {
       console.log('🧪 测试会话切换:', sessionId);
-      console.log('🧪 消息数据:', mockSessionMessages[sessionId]);
+      console.log('🧪 消息数据:', sessionMessages[sessionId]);
       setActiveSessionId(sessionId);
     };
 
@@ -276,12 +268,12 @@ const runtime = useChatRuntime({
     const handleSelectSession = useCallback(
       (sessionId: string) => {
         console.log('🖱️ 用户选择会话:', sessionId);
-        console.log('📊 加载消息:', mockSessionMessages[sessionId]);
-        console.log('📊 消息数量:', mockSessionMessages[sessionId]?.length || 0);
+        console.log('📊 加载消息:', sessionMessages[sessionId]);
+        console.log('📊 消息数量:', sessionMessages[sessionId]?.length || 0);
         setActiveSessionId(sessionId);
         setThreadKey(prev => prev + 1); // 强制重新渲染Thread
         onSessionChange?.(sessionId);
-      }, [onSessionChange]
+      }, [onSessionChange, sessionMessages]
     );
 
     // 抽屉控制函数
@@ -397,6 +389,16 @@ const runtime = useChatRuntime({
     ]
   );
 
+  const customMessageRenderers = useMemo(() => {
+    if (!customRenderers) return undefined;
+    return Object.fromEntries(
+      Object.entries(customRenderers).map(([key, renderer]) => [
+        key,
+        (message: AiChatMessage) => renderer(message, aiChatState),
+      ]),
+    );
+  }, [aiChatState, customRenderers]);
+
     // 渲染会话列表 - 带蒙层的右侧抽屉
     const renderSessionList = () => {
       if (!historyOpen) return null;
@@ -434,7 +436,7 @@ const runtime = useChatRuntime({
               onClick={() => {
                 console.log('🔍 当前会话:', activeSessionId);
                 console.log('🔍 所有会话:', sessionList);
-                console.log('🔍 消息数据:', mockSessionMessages);
+                console.log('🔍 消息数据:', sessionMessages);
               }}
               className="mb-4 flex w-full items-center gap-2 rounded-md border border-slate-200 bg-yellow-100 px-3 py-2 text-sm hover:bg-yellow-200"
             >
@@ -444,7 +446,7 @@ const runtime = useChatRuntime({
             {/* 测试消息渲染按钮 */}
             <button
               onClick={() => {
-                const testMessages = mockSessionMessages[activeSessionId] || [];
+                const testMessages = sessionMessages[activeSessionId] || [];
                 console.log('🧪 测试渲染消息:', testMessages);
                 setMessageList(testMessages);
               }}
@@ -576,9 +578,7 @@ const runtime = useChatRuntime({
             <div className="flex-1">
               <Thread
                 key={`${activeSessionId}-${threadKey}`}
-                messageComponents={{
-                  ...customRenderers,
-                }}
+                customMessageRenderers={customMessageRenderers}
                 composerInputPlaceholder={placeholder}
                 composerFooter={composerFooterSlot?.(aiChatState)}
                 composerActionLeftSlot={inputLeftSlot?.(aiChatState)}
