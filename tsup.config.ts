@@ -1,0 +1,30 @@
+import { defineConfig } from 'tsup';
+
+export default defineConfig({
+  entry: ['components/ai-chat/index.ts'],
+  format: ['esm', 'cjs'],
+  splitting: false,
+  sourcemap: true,
+  clean: true,
+  dts: true,
+  external: [
+    'react',
+    'react-dom',
+    'next',
+    '@assistant-ui/react',
+    '@assistant-ui/react-ai-sdk',
+    '@assistant-ui/react-markdown',
+    '@ai-sdk/openai',
+    'ai',
+    'zustand',
+    'framer-motion',
+    'lucide-react',
+    '@radix-ui/react-*',
+    'class-variance-authority',
+    'clsx',
+    'tailwind-merge',
+    'tw-animate-css',
+    'rehype-raw',
+    'remark-gfm',
+  ],
+});
