@@ -9,7 +9,6 @@ import React, {
   useState,
 } from "react";
 import { AssistantRuntimeProvider, useAssistantApi, useAssistantState } from "@assistant-ui/react";
-import { AssistantChatTransport, useChatRuntime } from "@assistant-ui/react-ai-sdk";
 import { History, PanelRight, Plus, X, Maximize, Minimize, Pin, CircleX } from "lucide-react";
 
 import { Thread } from "@/components/assistant-ui/thread";
@@ -27,8 +26,9 @@ import { createId, flattenMessages } from "./utils";
 import { AttachmentCard } from "./components/AttachmentCard";
 import { ChatHeader } from "./components/ChatHeader";
 // 导入mock数据
-import { useChatDataManager } from './use-chat-data-manager';
+import { mockSessionMessages } from '../../app/mockData/chat-messages';
 import { mockChatSessions } from "@/app/mockData/chat-sessions";
+import { useMockAssistantRuntime } from "./runtime/mockRuntime";
 
 // 同步组件 - 用于处理输入状态同步
 const ComposerSync = ({
@@ -107,7 +107,9 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
     });
 
     // 状态管理
-    const [input, setInput] = useState("");
+    const inputRef = React.useRef("");
+    const [input, setInput] = useState(""); 
+    // const [input, setInput] = useState("");
     const [isSending, setIsSending] = useState(false);
     const [historyOpen, setHistoryOpen] = useState(false);
     const [isPinned, setIsPinned] = useState(false);
@@ -115,7 +117,6 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
     const [internalOpen, setInternalOpen] = useState(true);
     const [customDrawersState, setCustomDrawersState] = useState<Record<string, boolean>>({});
     const [composerResetSignal, setComposerResetSignal] = useState(0);
-    const [threadKey, setThreadKey] = useState(0); // 用于强制重新渲染Thread
 
     // 消息状态 - 由runtime管理，这里仅用于API兼容性
     const [messageList, setMessageList] = useControllableState({
@@ -123,9 +124,6 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
       defaultValue: defaultMessages,
       onChange: onMessagesChange,
     });
-
-    // 消息列表由受控 messages/onMessagesChange 驱动，避免在此同步造成循环更新
-
     const [attachmentList, setAttachmentList] = useControllableState({
       value: attachments,
       defaultValue: defaultAttachments,
@@ -152,15 +150,27 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
         setCustomDrawersState(initialState);
       }
     }, [customDrawers]);
+    const stableSessions = useMemo(
+      () => (sessionList?.length ? sessionList : mockChatSessions),
+      [sessionList]
+    );
+    const { runtime, activeSessionId: runtimeSessionId, switchSession } = useMockAssistantRuntime({
+      initialSessionId: initialSessionId ?? (mockChatSessions[0]?.id || "session-1"),
+      sessions: stableSessions,
+      sessionMessages: mockSessionMessages,
+      onSendMessage: async ({ text, attachments, message, sessionId }) => {
+        // 保留你原来的回调链路（可选）
+        await onSendMessage?.({ text, attachments, message });
+      },
+    });
 
     // 会话切换逻辑 - 使用mock数据
     useEffect(() => {
-      if (!activeSessionId && sessionList[0]?.id) {
+      if (!runtimeSessionId && sessionList[0]?.id) {
         const newSessionId = sessionList[0].id;
-        console.log('🔄 自动选择会话:', newSessionId);
         setActiveSessionId(newSessionId);
       }
-    }, [activeSessionId, sessionList]);
+    }, [runtimeSessionId, sessionList]);
 
     useEffect(() => {
       if (initialSessionId) {
@@ -169,31 +179,6 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
       }
     }, [initialSessionId]);
 
-    // 监听会话变化 - 修复runtime未初始化问题
-    useEffect(() => {
-      console.log('📋 会话已切换:', activeSessionId);
-      console.log('📋 对应消息:', sessionMessages?.[activeSessionId]);
-    }, [activeSessionId, sessionMessages]);
-
-    // 使用数据管理器 - 清晰的数据流控制
-const dataManager = useChatDataManager(sessionMessages);
-
-// 运行时配置 - 使用数据管理器动态加载消息
-console.log('📊 创建runtime - 会话ID:', activeSessionId);
-const currentSessionMessages = dataManager.getCurrentMessages(activeSessionId) || [];
-console.log('📊 创建runtime - 消息数量:', currentSessionMessages.length);
-
-const runtime = useChatRuntime({
-  transport: new AssistantChatTransport({
-    api: "/api/chat",
-    fetch: async ({ messages }) => {
-      console.log('🔄 发送消息:', messages);
-      // 使用数据管理器处理消息发送
-      return dataManager.handleSendMessage(messages, activeSessionId);
-    },
-  }),
-  initialMessages: currentSessionMessages,
-});
 
     // 将mock消息格式转换为runtime格式
   const convertToRuntimeFormat = (mockMessages: AiChatMessage[]) => {
@@ -208,30 +193,10 @@ const runtime = useChatRuntime({
       ]
     }));
   };
-
-  // 监听activeSessionId变化，使用数据管理器同步消息
-  useEffect(() => {
-    if (runtime && activeSessionId && runtime.thread) {
-      dataManager.debug('开始同步会话消息', { sessionId: activeSessionId });
-      
-      try {
-        // 使用数据管理器获取当前会话消息
-        const currentMessages = dataManager.getCurrentMessages(activeSessionId);
-        dataManager.debug('获取到会话消息', { 消息数量: currentMessages.length });
-        
-        // 使用数据管理器同步到runtime
-        dataManager.syncToRuntime(currentMessages, runtime);
-        
-      } catch (error) {
-        dataManager.debug('❌ 同步消息失败', error);
-      }
-    }
-  }, [activeSessionId, runtime, dataManager]);
-
     // 测试方法 - 用于调试
     const testSessionSwitch = (sessionId: string) => {
       console.log('🧪 测试会话切换:', sessionId);
-      console.log('🧪 消息数据:', sessionMessages[sessionId]);
+      console.log('🧪 消息数据:', mockSessionMessages[sessionId]);
       setActiveSessionId(sessionId);
     };
 
@@ -267,13 +232,10 @@ const runtime = useChatRuntime({
 
     const handleSelectSession = useCallback(
       (sessionId: string) => {
-        console.log('🖱️ 用户选择会话:', sessionId);
-        console.log('📊 加载消息:', sessionMessages[sessionId]);
-        console.log('📊 消息数量:', sessionMessages[sessionId]?.length || 0);
-        setActiveSessionId(sessionId);
-        setThreadKey(prev => prev + 1); // 强制重新渲染Thread
+        switchSession(sessionId);
+        // setActiveSessionId(sessionId); // 你如果想保留 UI 层状态
         onSessionChange?.(sessionId);
-      }, [onSessionChange, sessionMessages]
+      }, [onSessionChange]
     );
 
     // 抽屉控制函数
@@ -350,8 +312,8 @@ const runtime = useChatRuntime({
     // 处理输入变化
   const handleComposerTextChange = useCallback(
     (value: string) => {
-      setInput(value);
-      onInputChange?.(value);
+      inputRef.current = value;
+    onInputChange?.(value);
     },
     [onInputChange]
   );
@@ -389,16 +351,6 @@ const runtime = useChatRuntime({
     ]
   );
 
-  const customMessageRenderers = useMemo(() => {
-    if (!customRenderers) return undefined;
-    return Object.fromEntries(
-      Object.entries(customRenderers).map(([key, renderer]) => [
-        key,
-        (message: AiChatMessage) => renderer(message, aiChatState),
-      ]),
-    );
-  }, [aiChatState, customRenderers]);
-
     // 渲染会话列表 - 带蒙层的右侧抽屉
     const renderSessionList = () => {
       if (!historyOpen) return null;
@@ -430,31 +382,6 @@ const runtime = useChatRuntime({
               <Plus className="size-4" />
               新建会话
             </button>
-            
-            {/* 测试按钮 - 用于调试 */}
-            <button
-              onClick={() => {
-                console.log('🔍 当前会话:', activeSessionId);
-                console.log('🔍 所有会话:', sessionList);
-                console.log('🔍 消息数据:', sessionMessages);
-              }}
-              className="mb-4 flex w-full items-center gap-2 rounded-md border border-slate-200 bg-yellow-100 px-3 py-2 text-sm hover:bg-yellow-200"
-            >
-              🔍 调试信息
-            </button>
-            
-            {/* 测试消息渲染按钮 */}
-            <button
-              onClick={() => {
-                const testMessages = sessionMessages[activeSessionId] || [];
-                console.log('🧪 测试渲染消息:', testMessages);
-                setMessageList(testMessages);
-              }}
-              className="mb-4 flex w-full items-center gap-2 rounded-md border border-slate-200 bg-green-100 px-3 py-2 text-sm hover:bg-green-200"
-            >
-              🧪 测试渲染消息
-            </button>
-
             <div className="space-y-2">
               {sessionList.map((session) => (
                 <button
@@ -462,7 +389,7 @@ const runtime = useChatRuntime({
                   onClick={() => handleSelectSession(session.id)}
                   className={cn(
                     "w-full rounded-md p-3 text-left text-sm transition-colors",
-                    activeSessionId === session.id
+                    runtimeSessionId === session.id
                       ? "bg-blue-100 text-blue-700"
                       : "hover:bg-slate-100"
                   )}
@@ -524,7 +451,7 @@ const runtime = useChatRuntime({
     };
 
     return (
-      <AssistantRuntimeProvider runtime={runtime} key={`${activeSessionId}-${threadKey}`}>
+      <AssistantRuntimeProvider runtime={runtime}>
         <div
           className={cn(
             "relative flex h-full w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg",
@@ -577,19 +504,20 @@ const runtime = useChatRuntime({
             {/* 主聊天区域 - 保持原有宽度 */}
             <div className="flex-1">
               <Thread
-                key={`${activeSessionId}-${threadKey}`}
-                customMessageRenderers={customMessageRenderers}
+                messageComponents={{
+                  ...customRenderers,
+                }}
                 composerInputPlaceholder={placeholder}
                 composerFooter={composerFooterSlot?.(aiChatState)}
                 composerActionLeftSlot={inputLeftSlot?.(aiChatState)}
                 composerActionRightSlot={inputRightSlot?.(aiChatState)}
                 attachments={attachmentList}
                 onAttachmentsChange={setAttachmentList}
-                onSendMessage={(text, attachments) => {
-                  handleSendMessage({ text, files: attachments });
-                }}
-              />
+                />
               
+                {/* onSendMessage={(text, attachments) => {
+                  handleSendMessage({ text, files: attachments });
+                }} */}
               {/* 状态同步组件 */}
               <ComposerSync
                 onTextChange={handleComposerTextChange}

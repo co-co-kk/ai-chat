@@ -9,6 +9,35 @@ export const mockSessionMessages: Record<string, AiChatMessage[]> = {
       content: "你好，我是XXX，有什么可以帮助你的吗？",
     },
     {
+      id: "msg-1-plan",
+      role: "assistant",
+      type: "plan",
+      content: "Implementation Plan", // 可选，给兜底/摘要用
+      meta: {
+        id: "plan-comprehensive",
+        title: "Feature Implementation Plan",
+        description: "Step-by-step guide for implementing the new authentication system",
+        todos: [
+          {
+            id: "1",
+            label: "Review existing auth flow",
+            status: "completed",
+            description: "Analyzed current session-based auth..."
+          },
+          {
+            id: "2",
+            label: "Design new token structure",
+            status: "completed"
+          },
+          {
+            id: "3",
+            label: "Implement JWT middleware",
+            status: "in_progress"
+          }
+        ]
+      }
+    },
+    {
       id: "msg-2",
       role: "user",
       type: "text",

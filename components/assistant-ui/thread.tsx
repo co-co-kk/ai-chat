@@ -13,7 +13,7 @@ import {
   FileImage,
   FileText,
 } from "lucide-react";
-
+import { useAssistantState } from "@assistant-ui/react";
 import {
   ActionBarPrimitive,
   BranchPickerPrimitive,
@@ -63,7 +63,6 @@ export type ThreadFile = {
 type ThreadProps = {
   messageComponents?: ComponentProps<typeof ThreadPrimitive.Messages>["components"];
   assistantPartComponents?: ComponentProps<typeof MessagePrimitive.Parts>["components"];
-  customMessageRenderers?: Record<string, (message: any) => ReactNode>;
   composerActionModules?: ComposerActionModule[];
   composerAttachment?: ReactNode;
   composerAttachments?: ReactNode;
@@ -80,7 +79,6 @@ type ThreadProps = {
 export const Thread: FC<ThreadProps> = ({
   messageComponents,
   assistantPartComponents,
-  customMessageRenderers,
   composerActionModules,
   composerAttachment,
   composerAttachments,
@@ -94,19 +92,9 @@ export const Thread: FC<ThreadProps> = ({
   onAttachmentsChange,
 }) => {
   const AssistantMessageSlot: FC = () => (
-    <AssistantMessage
-      partComponents={assistantPartComponents}
-      customMessageRenderers={customMessageRenderers}
-    />
+    <AssistantMessage partComponents={assistantPartComponents} />
   );
-
-  const handleAttachmentCancel = (target: ThreadFile) => {
-    if (onAttachmentsChange) {
-      const updatedAttachments = attachments.filter((item) => item.id !== target.id);
-      onAttachmentsChange(updatedAttachments);
-    }
-  };
-
+ 
   return (
     <LazyMotion features={domAnimation}>
       <MotionConfig reducedMotion="user">
@@ -132,24 +120,7 @@ export const Thread: FC<ThreadProps> = ({
               />
               <div className="aui-thread-viewport-spacer min-h-8 grow" />
             </ThreadPrimitive.If>
-             {/* 附件展示区域 */}
-            {attachments && attachments.length > 0 && (
-               <FileChat align="left">
-
-               
-              <div className="border-b border-slate-100 bg-slate-50">
-                <div className="flex gap-2.5 px-4">
-                  {attachments.map((file) => (
-                    <AttachmentCard
-                      key={file.id}
-                      file={file}
-                      onCancel={handleAttachmentCancel}
-                    />
-                  ))}
-                </div>
-              </div>
-              </FileChat>
-            )}
+          
 
             <Composer
               composerActionModules={composerActionModules}
@@ -161,6 +132,8 @@ export const Thread: FC<ThreadProps> = ({
               hideComposerSendButton={hideComposerSendButton}
               composerInputPlaceholder={composerInputPlaceholder}
               composerFooter={composerFooter}
+              attachments={attachments}
+              onAttachmentsChange={onAttachmentsChange}
             />
           </ThreadPrimitive.Viewport>
         </ThreadPrimitive.Root>
@@ -385,6 +358,8 @@ type ComposerProps = {
   hideComposerSendButton?: boolean;
   composerInputPlaceholder?: string;
   composerFooter?: ReactNode;
+  onAttachmentsChange?: ReactNode;
+  attachments?: any;
 };
 
 const Composer: FC<ComposerProps> = ({
@@ -397,9 +372,36 @@ const Composer: FC<ComposerProps> = ({
   hideComposerSendButton,
   composerInputPlaceholder,
   composerFooter,
+  onAttachmentsChange,
+  attachments,
 }) => {
+
+   const handleAttachmentCancel = (target: ThreadFile) => {
+    if (onAttachmentsChange) {
+      const updatedAttachments = attachments.filter((item) => item.id !== target.id);
+      onAttachmentsChange(updatedAttachments);
+    }
+  };
+
   return (
-    <div className="aui-composer-wrapper sticky bottom-0 mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col gap-4 overflow-visible rounded-t-3xl bg-background pb-4 md:pb-6">
+    <div className="aui-composer-wrapper sticky bottom-0 mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col gap-4 overflow-visible rounded-t-3xl">
+         {/* 附件展示区域 */}
+            {attachments && attachments.length > 0 && (
+               <FileChat align="left">
+                <div className="flex gap-2.5 px-4">
+                  {attachments.map((file) => (
+                    <AttachmentCard
+                      key={file.id}
+                      file={file}
+                      onCancel={handleAttachmentCancel}
+                    />
+                  ))}
+                </div>
+              </FileChat>
+            )}
+ <div className="aui-composer-wrapper sticky bottom-0 mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col gap-4 overflow-visible rounded-t-3xl bg-background pb-4 md:pb-6">
+
+ 
       <ThreadScrollToBottom />
       <ComposerPrimitive.Root className="aui-composer-root relative flex w-full flex-col">
 
@@ -424,6 +426,7 @@ const Composer: FC<ComposerProps> = ({
         </ComposerPrimitive.AttachmentDropzone>
       </ComposerPrimitive.Root>
       {composerFooter}
+    </div>
     </div>
   );
 };
@@ -503,48 +506,31 @@ const MessageError: FC = () => {
 
 type AssistantMessageProps = {
   partComponents?: ComponentProps<typeof MessagePrimitive.Parts>["components"];
-  customMessageRenderers?: Record<string, (message: any) => ReactNode>;
 };
 
-const AssistantMessage: FC<AssistantMessageProps> = ({
-  partComponents,
-  customMessageRenderers,
-}) => {
+const AssistantMessage: FC<AssistantMessageProps> = ({ partComponents }) => {
   const tools =
     partComponents?.tools && "Override" in partComponents.tools
       ? partComponents.tools
       : { Fallback: ToolFallback, ...(partComponents?.tools ?? {}) };
-  const customRendererType = useAssistantState(
-    ({ message }) => message.metadata?.custom?.rendererType,
-  );
-  const customRendererMessage = useAssistantState(
-    ({ message }) => message.metadata?.custom?.aiChatMessage,
-  );
-  const customRenderer =
-    customRendererType && customMessageRenderers
-      ? customMessageRenderers[customRendererType]
-      : undefined;
 
   return (
     <MessagePrimitive.Root asChild>
+      {/* animate-in fade-in slide-in-from-bottom-1 duration-150 ease-out */}
       <div
-        className="aui-assistant-message-root relative mx-auto w-full max-w-[var(--thread-max-width)] animate-in py-4 duration-150 ease-out fade-in slide-in-from-bottom-1 last:mb-24"
+        className="aui-assistant-message-root relative mx-auto w-full max-w-[var(--thread-max-width)]  py-4  last:mb-24"
         data-role="assistant"
       >
         <div className="aui-assistant-message-content mx-2 leading-7 break-words text-foreground">
-          {customRenderer && customRendererMessage ? (
-            customRenderer(customRendererMessage)
-          ) : (
-            <MessagePrimitive.Parts
-              components={{
-                Text: MarkdownText,
-                Reasoning: Reasoning,
-                ReasoningGroup: ReasoningGroup,
-                ...partComponents,
-                tools,
-              }}
-            />
-          )}
+          <MessagePrimitive.Parts
+            components={{
+              Text: MarkdownText,
+              Reasoning: Reasoning,
+              ReasoningGroup: ReasoningGroup,
+              ...partComponents,
+              tools,
+            }}
+          />
           <MessageError />
         </div>
 
