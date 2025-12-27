@@ -47,9 +47,9 @@ const ComposerSync = ({
 
   useEffect(() => {
     // 在mock模式下安全调用
-    if (api?.composer?.setText) {
-      api.composer.setText("");
-    }
+    // if (api?.composer?.setText) {
+    //   api.composer.setText("");
+    // }
   }, [api, resetSignal]);
 
   return null;
@@ -108,7 +108,7 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
 
     // 状态管理
     const inputRef = React.useRef("");
-    const [input, setInput] = useState(""); 
+    const [input, setInput] = useState("");
     // const [input, setInput] = useState("");
     const [isSending, setIsSending] = useState(false);
     const [historyOpen, setHistoryOpen] = useState(false);
@@ -160,7 +160,7 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
       sessionMessages: mockSessionMessages,
       onSendMessage: async ({ text, attachments, message, sessionId }) => {
         // 保留你原来的回调链路（可选）
-        await onSendMessage?.({ text, attachments, message });
+        await onSendMessage?.({ text, attachments: attachments || [], message });
       },
     });
 
@@ -181,18 +181,18 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
 
 
     // 将mock消息格式转换为runtime格式
-  const convertToRuntimeFormat = (mockMessages: AiChatMessage[]) => {
-    return mockMessages.map(msg => ({
-      id: msg.id,
-      role: msg.role,
-      parts: [
-        {
-          type: msg.type || 'text',
-          content: msg.content
-        }
-      ]
-    }));
-  };
+    const convertToRuntimeFormat = (mockMessages: AiChatMessage[]) => {
+      return mockMessages.map(msg => ({
+        id: msg.id,
+        role: msg.role,
+        parts: [
+          {
+            type: msg.type || 'text',
+            content: msg.content
+          }
+        ]
+      }));
+    };
     // 测试方法 - 用于调试
     const testSessionSwitch = (sessionId: string) => {
       console.log('🧪 测试会话切换:', sessionId);
@@ -222,7 +222,7 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
           minute: "2-digit",
         }),
       };
-      
+
       setSessionList((prev) => [session, ...prev]);
       setActiveSessionId(session.id);
       setMessageList([]); // 新会话从空消息开始
@@ -310,46 +310,46 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
     }));
 
     // 处理输入变化
-  const handleComposerTextChange = useCallback(
-    (value: string) => {
-      inputRef.current = value;
-    onInputChange?.(value);
-    },
-    [onInputChange]
-  );
+    const handleComposerTextChange = useCallback(
+      (value: string) => {
+        inputRef.current = value;
+        onInputChange?.(value);
+      },
+      [onInputChange]
+    );
 
-  // 构建AiChatState对象
-  const aiChatState: AiChatState = useMemo(
-    () => ({
-      input,
-      currentInput: input,
-      messages: messageList,
-      attachments: attachmentList,
-      isSending,
-      setInput,
-      setAttachments: setAttachmentList,
-      appendMessage: handleAppendMessage,
-      clearMessages: handleClearMessages,
-      sendMessage: handleSendMessage,
-      openCustomDrawer: handleOpenDrawer,
-      closeCustomDrawer: handleCloseDrawer,
-      toggleCustomDrawer: handleToggleDrawer,
-    }),
-    [
-      input,
-      messageList,
-      attachmentList,
-      isSending,
-      setInput,
-      setAttachmentList,
-      handleAppendMessage,
-      handleClearMessages,
-      handleSendMessage,
-      handleOpenDrawer,
-      handleCloseDrawer,
-      handleToggleDrawer,
-    ]
-  );
+    // 构建AiChatState对象
+    const aiChatState: AiChatState = useMemo(
+      () => ({
+        input,
+        currentInput: input,
+        messages: messageList,
+        attachments: attachmentList,
+        isSending,
+        setInput,
+        setAttachments: setAttachmentList,
+        appendMessage: handleAppendMessage,
+        clearMessages: handleClearMessages,
+        sendMessage: handleSendMessage,
+        openCustomDrawer: handleOpenDrawer,
+        closeCustomDrawer: handleCloseDrawer,
+        toggleCustomDrawer: handleToggleDrawer,
+      }),
+      [
+        input,
+        messageList,
+        attachmentList,
+        isSending,
+        setInput,
+        setAttachmentList,
+        handleAppendMessage,
+        handleClearMessages,
+        handleSendMessage,
+        handleOpenDrawer,
+        handleCloseDrawer,
+        handleToggleDrawer,
+      ]
+    );
 
     // 渲染会话列表 - 带蒙层的右侧抽屉
     const renderSessionList = () => {
@@ -358,11 +358,11 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
       return (
         <>
           {/* 蒙层背景 */}
-          <div 
+          <div
             className="absolute inset-0 z-20 bg-black/20 backdrop-blur-sm"
             onClick={() => setHistoryOpen(false)}
           />
-          
+
           {/* 抽屉内容 */}
           <div className="absolute right-0 top-0 z-30 h-full w-64 border-l bg-white p-4 shadow-xl">
             <div className="mb-4 flex items-center justify-between">
@@ -374,7 +374,7 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
                 <X className="size-4" />
               </button>
             </div>
-            
+
             <button
               onClick={handleCreateSession}
               className="mb-4 flex w-full items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50"
@@ -416,7 +416,7 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
             if (!customDrawersState[drawer.id]) return null;
 
             // 蒙层和抽屉的组合
-            const isLeft = drawer.position === 'left';
+            const isLeft = (drawer as any).position === 'left';
             const overlayClass = "absolute inset-0 z-20 bg-black/20 backdrop-blur-sm";
             const drawerClass = isLeft
               ? 'absolute left-0 top-0 z-30 h-full w-64 border-r bg-white p-4 shadow-xl'
@@ -425,11 +425,11 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
             return (
               <React.Fragment key={drawer.id}>
                 {/* 蒙层背景 */}
-                <div 
+                <div
                   className={overlayClass}
                   onClick={() => handleCloseDrawer(drawer.id)}
                 />
-                
+
                 {/* 抽屉内容 */}
                 <div className={drawerClass}>
                   <div className="mb-4 flex items-center justify-between">
@@ -505,7 +505,7 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
             <div className="flex-1">
               <Thread
                 messageComponents={{
-                  ...customRenderers,
+                  ...(customRenderers as any),
                 }}
                 composerInputPlaceholder={placeholder}
                 composerFooter={composerFooterSlot?.(aiChatState)}
@@ -513,9 +513,9 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
                 composerActionRightSlot={inputRightSlot?.(aiChatState)}
                 attachments={attachmentList}
                 onAttachmentsChange={setAttachmentList}
-                />
-              
-                {/* onSendMessage={(text, attachments) => {
+              />
+
+              {/* onSendMessage={(text, attachments) => {
                   handleSendMessage({ text, files: attachments });
                 }} */}
               {/* 状态同步组件 */}

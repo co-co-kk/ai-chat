@@ -98,59 +98,7 @@ export const mockMessages = [
       }
     ]
   },
-  {
-    id: '11',
-    role: 'user',
-    parts: [
-      { type: 'text', content: 'Can you show me an interactive option selection component?' }
-    ]
-  },
-  {
-    id: '12',
-    role: 'assistant',
-    parts: [
-      {
-        type: 'text',
-        content: 'Absolutely! Here\'s an interactive option list where you can select multiple options:\n\n<div class="option-list-container">
-  <OptionList
-    options={[
-      {
-        "id": "good",
-        "label": "Good",
 
-        "description": "High quality work"
-      },
-      {
-        "id": "fast",
-        "label": "Fast",
-        "description": "Quick turnaround"
-      },
-      {
-        "id": "cheap",
-        "label": "Cheap",
-        "description": "Low cost"
-      }
-    ]}
-    selectionMode="multi"
-    maxSelections={2}
-    responseActions={[
-      {
-        "id": "cancel",
-        "label": "Reset",
-        "variant": "ghost"
-      },
-      {
-        "id": "confirm",
-        "label": "Confirm",
-        "variant": "default"
-      }
-    ]}
-    onConfirm={(selection) => console.log("Selected options:", selection)}
-  />
-</div>\n\nThis is a custom OptionList component built with React and Tailwind CSS. You can select up to 2 options from the three available choices, then confirm or reset your selection.'
-      }
-    ]
-  },
   {
     id: '11',
     role: 'user',
