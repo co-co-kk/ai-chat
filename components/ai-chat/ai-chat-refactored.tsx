@@ -29,7 +29,7 @@ import { ChatHeader } from "./components/ChatHeader";
 import { mockSessionMessages } from '../../app/mockData/chat-messages';
 import { mockChatSessions } from "@/app/mockData/chat-sessions";
 import { useMockAssistantRuntime } from "./runtime/mockRuntime";
-
+import { PlanToolUI } from "../assistant-ui/markdown-components";
 // 同步组件 - 用于处理输入状态同步
 const ComposerSync = ({
   onTextChange,
@@ -449,9 +449,22 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
         </>
       );
     };
+    function ClientOnly({ children }: { children: React.ReactNode }) {
+        const [mounted, setMounted] = React.useState(false);
+        React.useEffect(() => setMounted(true), []);
+        if (!mounted) return null;
+        return children;
+      }
+       const threadMessageComponents = useMemo(() => {
+      return {
+        ...(customRenderers as any),
+      };
+    }, [customRenderers]);
 
     return (
+      //  <ClientOnly>
       <AssistantRuntimeProvider runtime={runtime}>
+        <PlanToolUI />
         <div
           className={cn(
             "relative flex h-full w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg",
@@ -504,9 +517,10 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
             {/* 主聊天区域 - 保持原有宽度 */}
             <div className="flex-1">
               <Thread
-                messageComponents={{
-                  ...(customRenderers as any),
-                }}
+                // messageComponents={{
+                //   ...(customRenderers as any),
+                // }}
+                messageComponents={threadMessageComponents}
                 composerInputPlaceholder={placeholder}
                 composerFooter={composerFooterSlot?.(aiChatState)}
                 composerActionLeftSlot={inputLeftSlot?.(aiChatState)}
@@ -543,6 +557,7 @@ export const AiChat = forwardRef<AiChatHandle, AiChatProps>(
           </div>
         </div>
       </AssistantRuntimeProvider>
+      // </ClientOnly>
     );
   }
 );

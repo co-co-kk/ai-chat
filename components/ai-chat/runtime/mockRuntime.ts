@@ -22,8 +22,27 @@ type UseMockAssistantRuntimeArgs = {
   }) => Promise<void> | void;
 };
 
+// 🎯 核心修改在这里
 function convertMessage(m: AiChatMessage): ThreadMessageLike {
-  // mock 阶段：先全部降级成 text part，保证能渲染
+  // 1. 如果是 Tool Call，必须返回 type: "tool-call" 的结构
+  if (m.type === "tool-call" && m.meta?.toolName) {
+    return {
+      id: m.id,
+      role: "assistant", // Tool Call 通常是 assistant 发起的
+      content: [
+        {
+          type: "tool-call",
+          toolName: m.meta.toolName,
+          toolCallId: m.id, // 必须有唯一 ID
+          args: m.meta.args ?? {}, // 你的 mock args
+        },
+      ],
+      createdAt: m.createdAt ? new Date(m.createdAt) : undefined,
+      custom: { raw: m },
+    };
+  }
+
+  // 2. 只有 text 类型才走原来的逻辑
   const text =
     typeof m.content === "string" ? m.content : JSON.stringify(m.content ?? "");
 
@@ -35,6 +54,7 @@ function convertMessage(m: AiChatMessage): ThreadMessageLike {
     custom: { raw: m },
   };
 }
+
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));

@@ -1,3 +1,4 @@
+import type { ComponentType } from "react";
 // 🎯 AiChat 核心类型定义
 // 本文件集中管理所有 AiChat 组件相关的类型定义
 
@@ -124,4 +125,18 @@ export interface AiChatProps {
   disabled?: boolean;
   customDrawers?: AiChatCustomDrawer[];
   onDrawerToggle?: (drawerId: string, open: boolean) => void;
+  // ✅ 新增：接收外部定义的工具列表
+  tools?: AiChatTool[]; 
+  // ✅ 新增：UI 插槽
+  renderHeaderActions?: (state: AiChatState) => React.ReactNode;
+  renderComposerActions?: (state: AiChatState) => React.ReactNode;
 }
+
+
+
+// 定义一个标准工具配置接口
+export type AiChatTool<TArgs = any> = {
+  toolName: string;           // 对应 JSON 中的 meta.toolName (如 "plan")
+  component: ComponentType<TArgs>; // 对应的 React 组件
+  dataTransformer?: (args: any) => TArgs; // 可选：数据清洗函数
+};

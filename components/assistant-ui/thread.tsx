@@ -24,7 +24,7 @@ import {
 } from "@assistant-ui/react";
 import FileChat from './FileChat.tsx'
 
-import type { ComponentProps, FC, ReactNode } from "react";
+import { memo, useMemo, type ComponentProps, type FC, type ReactNode } from "react";
 import { LazyMotion, MotionConfig, domAnimation } from "motion/react";
 import * as m from "motion/react-m";
 
@@ -44,6 +44,7 @@ import {
 } from "@/components/assistant-ui/composer-action-modules";
 
 import { cn } from "@/lib/utils";
+import { PlanToolUI } from "./markdown-components";
 
 // 定义附件类型
 export type ThreadFileStatus = "idle" | "uploading" | "success" | "error";
@@ -76,7 +77,7 @@ type ThreadProps = {
   onAttachmentsChange?: (files: ThreadFile[]) => void;
 };
 
-export const Thread: FC<ThreadProps> = ({
+export const ThreadComponent: FC<ThreadProps> = ({
   messageComponents,
   assistantPartComponents,
   composerActionModules,
@@ -91,9 +92,21 @@ export const Thread: FC<ThreadProps> = ({
   attachments = [],
   onAttachmentsChange,
 }) => {
-  const AssistantMessageSlot: FC = () => (
-    <AssistantMessage partComponents={assistantPartComponents} />
-  );
+  const AssistantMessageSlot = useMemo(() => {
+    // 定义一个高阶组件，接收 props 并透传
+    return (props: any) => (
+      <AssistantMessage {...props} partComponents={assistantPartComponents} />
+    );
+  }, [assistantPartComponents]);
+  const threadMessageComponents = useMemo(() => {
+    // 定义一个高阶组件，接收 props 并透传
+    return {
+       UserMessage,
+      EditComposer,
+      AssistantMessage: AssistantMessageSlot,
+      ...messageComponents,
+    }
+  }, [UserMessage, EditComposer,AssistantMessageSlot,messageComponents]);
 
   return (
     <LazyMotion features={domAnimation}>
@@ -111,12 +124,13 @@ export const Thread: FC<ThreadProps> = ({
 
             <ThreadPrimitive.If empty={false}>
               <ThreadPrimitive.Messages
-                components={{
-                  UserMessage,
-                  EditComposer,
-                  AssistantMessage: AssistantMessageSlot,
-                  ...messageComponents,
-                }}
+                components={threadMessageComponents}
+                // components={{
+                //   UserMessage,
+                //   EditComposer,
+                //   AssistantMessage: AssistantMessageSlot,
+                //   ...messageComponents,
+                // }}
               />
               <div className="aui-thread-viewport-spacer min-h-8 grow" />
             </ThreadPrimitive.If>
@@ -141,6 +155,7 @@ export const Thread: FC<ThreadProps> = ({
     </LazyMotion>
   );
 };
+export const Thread = memo(ThreadComponent);
 
 // 辅助函数：格式化文件大小
 const formatSize = (size: number) => {
@@ -358,7 +373,8 @@ type ComposerProps = {
   hideComposerSendButton?: boolean;
   composerInputPlaceholder?: string;
   composerFooter?: ReactNode;
-  onAttachmentsChange?: ReactNode;
+  // onAttachmentsChange?: ReactNode;
+  onAttachmentsChange?: (files: ThreadFile[]) => void; // ✅
   attachments?: any;
 };
 
@@ -509,10 +525,20 @@ type AssistantMessageProps = {
 };
 
 export const AssistantMessage: FC<AssistantMessageProps> = ({ partComponents }) => {
-  const tools =
-    partComponents?.tools && "Override" in partComponents.tools
-      ? partComponents.tools
-      : { Fallback: ToolFallback, ...(partComponents?.tools ?? {}) };
+
+    const tools = {
+      by_name: {
+        // ✅ 注册 plan 对应的 UI
+        plan: PlanToolUI,
+        // 允许外部继续扩展
+        ...(partComponents?.tools && "by_name" in partComponents.tools
+          ? (partComponents.tools as any).by_name
+          : {}),
+      },
+      Fallback: ToolFallback,
+      ...(partComponents?.tools && !("by_name" in partComponents.tools) ? partComponents.tools : {}),
+    };
+
 
   return (
     <MessagePrimitive.Root asChild>
@@ -528,7 +554,8 @@ export const AssistantMessage: FC<AssistantMessageProps> = ({ partComponents }) 
               Reasoning: Reasoning,
               ReasoningGroup: ReasoningGroup,
               ...partComponents,
-              tools,
+              // tools,
+              tools: { Fallback: ToolFallback }
             }}
           />
           <MessageError />
